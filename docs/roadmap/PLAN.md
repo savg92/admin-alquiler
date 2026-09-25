@@ -67,10 +67,10 @@ E2E gate is green.
 
 ### WS-3 — Properties and people [Stage B]
 
-- [ ] Properties, units (incl. subtypes: residential, office, parking, storage)
-- [ ] Guided property setup: step checklist, bulk unit creation, org-default prefill, resumable
-- [ ] Owners + ownership shares (`PropertyOwnership` with %/dates)
-- [ ] Tenants + tenancy periods
+- [x] Properties, units (incl. subtypes: residential, office, parking, storage)
+- [x] Guided property setup: step checklist, bulk unit creation, org-default prefill, resumable
+- [x] Owners + ownership shares (`PropertyOwnership` with %/dates)
+- [x] Tenants + tenancy periods
 - [ ] Property/unit configuration + photos/records
 
 ### WS-4 — Rental [Stage B: core → Stage C: remainder]
