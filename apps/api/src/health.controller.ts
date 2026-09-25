@@ -18,17 +18,10 @@ export interface Readiness {
   };
 }
 
-function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const guard = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms`)),
-      ms,
-    );
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
   });
   return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
 }
@@ -135,9 +128,7 @@ export class HealthController {
       checkStorage(),
     ]);
     const status =
-      database.status === "ok" &&
-      queue.status === "ok" &&
-      storage.status === "ok"
+      database.status === "ok" && queue.status === "ok" && storage.status === "ok"
         ? "ok"
         : "degraded";
     if (status === "degraded") {

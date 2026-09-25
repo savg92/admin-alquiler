@@ -24,8 +24,6 @@ export function loadConfig(service: ServiceName): ServiceConfig {
   return {
     service,
     nodeEnv: process.env.NODE_ENV ?? "development",
-    port: Number(
-      process.env[`${service.toUpperCase()}_PORT`] ?? DEFAULT_PORTS[service],
-    ),
+    port: Number(process.env[`${service.toUpperCase()}_PORT`] ?? DEFAULT_PORTS[service]),
   };
 }

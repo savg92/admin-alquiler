@@ -33,9 +33,7 @@
       "@admin-alquiler/documents": ["./packages/documents/src/index.ts"],
       "@admin-alquiler/domain": ["./packages/domain/src/index.ts"],
       "@admin-alquiler/events": ["./packages/events/src/index.ts"],
-      "@admin-alquiler/notifications": [
-        "./packages/notifications/src/index.ts"
-      ],
+      "@admin-alquiler/notifications": ["./packages/notifications/src/index.ts"],
       "@admin-alquiler/permissions": ["./packages/permissions/src/index.ts"],
       "@admin-alquiler/shared": ["./packages/shared/src/index.ts"]
     }

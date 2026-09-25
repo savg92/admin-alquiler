@@ -17,9 +17,7 @@ declare module "express" {
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const requestId = resolveRequestId(
-      req.headers[REQUEST_ID_HEADER.toLowerCase()],
-    );
+    const requestId = resolveRequestId(req.headers[REQUEST_ID_HEADER.toLowerCase()]);
     req.requestId = requestId;
     res.setHeader(REQUEST_ID_HEADER, requestId);
     const startedAt = Date.now();

@@ -3,9 +3,9 @@ import { validateEnv } from "@admin-alquiler/config";
 
 describe("validateEnv", () => {
   test("api requires DATABASE_URL", () => {
-    expect(() =>
-      validateEnv("api", { NODE_ENV: "test" } as NodeJS.ProcessEnv),
-    ).toThrow(/DATABASE_URL/);
+    expect(() => validateEnv("api", { NODE_ENV: "test" } as NodeJS.ProcessEnv)).toThrow(
+      /DATABASE_URL/,
+    );
   });
 
   test("api passes with DATABASE_URL", () => {

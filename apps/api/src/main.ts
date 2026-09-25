@@ -6,13 +6,8 @@ import { setupOpenApi } from "./openapi";
 
 async function bootstrap() {
   const env = validateEnv("api");
-  if (
-    env.NODE_ENV === "production" &&
-    !("JWT_SECRET" in env && env.JWT_SECRET)
-  ) {
-    throw new Error(
-      "Invalid environment for api: JWT_SECRET is required in production",
-    );
+  if (env.NODE_ENV === "production" && !("JWT_SECRET" in env && env.JWT_SECRET)) {
+    throw new Error("Invalid environment for api: JWT_SECRET is required in production");
   }
   const app = await NestFactory.create(AppModule, { cors: true });
   setupOpenApi(app);

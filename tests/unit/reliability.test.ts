@@ -20,14 +20,7 @@ describe("resolveRequestId", () => {
 describe("queue registry", () => {
   test("ships with the expected baseline queues", () => {
     const queues = listQueues();
-    for (const name of [
-      "email",
-      "pdf",
-      "notifications",
-      "reminders",
-      "imports",
-      "charges",
-    ]) {
+    for (const name of ["email", "pdf", "notifications", "reminders", "imports", "charges"]) {
       expect(queues).toContain(name);
     }
   });
