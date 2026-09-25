@@ -53,7 +53,7 @@ E2E gate is green.
 ### Engineering contracts [Stage A]
 
 - [x] OpenAPI starter (NestJS Swagger code-first; `GET /openapi.json` is the contract)
-- [ ] `Idempotency-Key` convention on POST (24h window, 409 on key+payload mismatch)
+- [x] `Idempotency-Key` convention on POST (24h window, 409 on key+payload mismatch)
 - [ ] Prisma Migrate with versioned reviewable SQL
 - [ ] Locale-parameterized seed (Colombia `es-CO`/`CO`/`COP` ships first)
 

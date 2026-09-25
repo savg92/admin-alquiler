@@ -3,7 +3,7 @@ import pino from "pino";
 export type LogSeverity = "debug" | "info" | "warn" | "error";
 
 export interface LogFields {
-  requestId?: string;
+  requestId?: string | undefined;
   orgId?: string;
   actorId?: string;
   event: string;
