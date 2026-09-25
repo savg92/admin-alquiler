@@ -220,4 +220,35 @@ describe("server-side permission guard", () => {
   test("denies unauthenticated callers", async () => {
     expect((await getProperty(null, "org-a")).status).toBe(403);
   });
+
+  test("denies expired sessions", async () => {
+    const loginResponse = await login("admin@ejemplo.co", "correct-horse-1");
+    const { accessToken } = (await loginResponse.json()) as { accessToken: string };
+    const payload = JSON.parse(
+      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString("utf8"),
+    ) as { sessionId: string };
+    const session = store.sessions.get(payload.sessionId);
+    expect(session).toBeDefined();
+    store.sessions.set(payload.sessionId, {
+      ...session!,
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    expect((await getProperty(accessToken, "org-a")).status).toBe(403);
+  });
+
+  test("denies suspended memberships", async () => {
+    store.users.set("user-suspended", {
+      id: "user-suspended",
+      email: "suspended@ejemplo.co",
+      passwordHash: hashPassword("correct-horse-2"),
+      name: "Suspended",
+    });
+    store.memberships.set("user-suspended", [
+      { orgId: "org-a", status: "SUSPENDED", roleName: "admin", permissions: ["property:write"] },
+    ]);
+    const loginResponse = await login("suspended@ejemplo.co", "correct-horse-2");
+    expect(loginResponse.status).toBe(200);
+    const { accessToken } = (await loginResponse.json()) as { accessToken: string };
+    expect((await getProperty(accessToken, "org-a")).status).toBe(403);
+  });
 });
