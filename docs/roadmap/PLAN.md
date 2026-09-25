@@ -75,15 +75,15 @@ E2E gate is green.
 
 ### WS-4 — Rental [Stage B: core → Stage C: remainder]
 
-- [ ] Contracts (documents, dates, terms, status, parties)
+- [x] Contracts (documents, dates, terms, status, parties)
 - [ ] Codeudores + linked rental policy (validity dates, policy-expiry reminders)
 - [ ] Contract expiry/renewal reminders (90/60/30 days) + renewal workflow
 - [ ] Early termination (notice/effective dates, cause, country-pluggable indemnity as charge/credit)
 - [ ] Rent schedules + IPC increases (country-pluggable cap; CO DANE auto-fetch + manual correction)
-- [ ] Recurring charge generation (monthly propose → preview/confirm; idempotent per contract+period)
-- [ ] Charges (rent, utilities, PH cuotas + fines, adjustments)
+- [x] Recurring charge generation (monthly propose → preview/confirm; idempotent per contract+period)
+- [x] Charges (rent, utilities, PH cuotas + fines, adjustments)
 - [ ] Utility meter readings → charges (value, date, photo; anomaly flags)
-- [ ] Payments + receipts/proofs + allocations
+- [x] Payments + receipts/proofs + allocations
 - [ ] Deposits (held/deducted/returned; ledger reconciles)
 - [ ] Aging report (current, 1–30, 31–60, 61–90, 90+)
 - [ ] Late-fee evaluation (configurable rule; Colombia national default)

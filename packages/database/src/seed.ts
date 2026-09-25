@@ -29,7 +29,14 @@ async function main(): Promise<void> {
       },
     });
 
-    const permissions = ["property:read", "property:write", "contract:write", "payment:write"];
+    const permissions = [
+      "property:read",
+      "property:write",
+      "contract:read",
+      "contract:write",
+      "payment:read",
+      "payment:write",
+    ];
     for (const key of permissions) {
       await prisma.permission.upsert({
         where: { key },

@@ -15,3 +15,17 @@ export type {
   TenancyPeriod,
   UnitSubtype,
 } from "./property-setup";
+export {
+  allocatePayment,
+  chargePaymentStatus,
+  periodDueDate,
+  periodKey,
+  validateContractTerms,
+} from "./rental";
+export type {
+  AllocationResult,
+  ChargeBalance,
+  ChargePaymentStatus,
+  ContractTermsInput,
+  PaymentAllocation,
+} from "./rental";

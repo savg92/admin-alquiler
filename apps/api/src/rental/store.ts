@@ -1,0 +1,98 @@
+export interface ContractInput {
+  propertyId: string;
+  tenantId: string;
+  number: string;
+  startDate: string;
+  endDate: string;
+  rentAmountMinor: number;
+  currency: string;
+}
+
+export interface ContractRow {
+  id: string;
+  orgId: string;
+  propertyId: string;
+  tenantId: string;
+  number: string;
+  status: string;
+  startDate: Date;
+  endDate: Date;
+  rentAmountMinor: number;
+  currency: string;
+}
+
+export interface ChargeRow {
+  id: string;
+  contractId: string;
+  type: string;
+  description: string;
+  amountMinor: number;
+  currency: string;
+  dueDate: Date;
+  period: string;
+  status: string;
+}
+
+export interface ChargeBalanceInput {
+  id: string;
+  balanceMinor: number;
+  dueDate: string;
+}
+
+export interface PaymentInput {
+  amountMinor: number;
+  method: string;
+  reference?: string | undefined;
+  paidAt: string;
+}
+
+export interface ReceiptRow {
+  id: string;
+  number: string;
+  locale: string;
+}
+
+export interface AuditInput {
+  orgId?: string;
+  actorId?: string;
+  action: string;
+  entityType?: string;
+  entityId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RentalStore {
+  findOrgProfile(orgId: string): Promise<{ currency: string; locale: string } | null>;
+  findProperty(propertyId: string, orgId: string): Promise<{ id: string } | null>;
+  findTenant(tenantId: string, orgId: string): Promise<{ id: string } | null>;
+  isContractNumberTaken(orgId: string, number: string): Promise<boolean>;
+  createContract(orgId: string, input: ContractInput): Promise<ContractRow>;
+  listContracts(orgId: string): Promise<ContractRow[]>;
+  findContract(id: string, orgId: string): Promise<ContractRow | null>;
+  findCharge(contractId: string, period: string, type: string): Promise<ChargeRow | null>;
+  createCharge(data: {
+    orgId: string;
+    contractId: string;
+    type: string;
+    description: string;
+    amountMinor: number;
+    currency: string;
+    dueDate: Date;
+    period: string;
+  }): Promise<ChargeRow>;
+  pendingChargeBalances(contractId: string): Promise<ChargeBalanceInput[]>;
+  createPayment(data: {
+    orgId: string;
+    contractId: string;
+    amountMinor: number;
+    currency: string;
+    method: string;
+    reference: string | null;
+    paidAt: Date;
+  }): Promise<{ id: string }>;
+  createAllocation(paymentId: string, chargeId: string, amountMinor: number): Promise<void>;
+  updateChargeStatus(chargeId: string, status: string): Promise<void>;
+  createReceipt(paymentId: string, number: string, locale: string): Promise<ReceiptRow>;
+  findReceipt(id: string, orgId: string): Promise<(ReceiptRow & { paymentId: string }) | null>;
+  writeAuditEvent(event: AuditInput): Promise<void>;
+}
