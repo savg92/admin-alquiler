@@ -1,0 +1,997 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Every organization-owned record carries orgId directly so tenant
+// isolation is enforceable in repository scoping, never only in the UI.
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+enum UnitSubtype {
+  RESIDENTIAL
+  OFFICE
+  PARKING
+  STORAGE
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum ChargeType {
+  RENT
+  UTILITY
+  PH_ORDINARY
+  PH_EXTRAORDINARY
+  FINE
+  ADJUSTMENT
+}
+
+enum ChargeStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum PaymentMethod {
+  TRANSFER
+  PSE
+  CASH
+  CHECK
+  CARD
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SIGNED
+  FINAL
+  ARCHIVED
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  ON_HOLD
+  RESOLVED
+  CLOSED
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum DunningStage {
+  DAY_3
+  DAY_7
+  DAY_15
+  DAY_30
+}
+
+enum LateFeeScope {
+  COUNTRY
+  ORGANIZATION
+  CONTRACT
+}
+
+enum LateFeeRateType {
+  PERCENTAGE
+  FIXED
+}
+
+enum LateFeeBase {
+  TOTAL_DUE
+  RENT_ONLY
+}
+
+enum IndexSource {
+  PROVIDER
+  MANUAL
+}
+
+enum VoteChoice {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+enum AssemblyMajority {
+  ORDINARY
+  QUALIFIED
+}
+
+enum AdminFeeType {
+  ORDINARY
+  EXTRAORDINARY
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  country   String   @db.Char(2)
+  locale    String
+  currency  String   @db.Char(3)
+  timezone  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  roles         Role[]
+  properties    Property[]
+  tenancies     Tenancy[]
+  contracts     Contract[]
+  charges       Charge[]
+  payments      Payment[]
+  accounts      Account[]
+  categories    Category[]
+  transactions  FinancialTransaction[]
+  suppliers     Supplier[]
+  documents     Document[]
+  auditEvents   AuditEvent[]
+  outboxEvents  OutboxEvent[]
+  lateFeeRules  LateFeeRule[]
+  settlements   Settlement[]
+  notifications Notification[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  locale       String   @default("es-CO")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships Membership[]
+  sessions    Session[]
+  auditEvents AuditEvent[] @relation("AuditActor")
+}
+
+model Role {
+  id      String           @id @default(cuid())
+  orgId   String
+  name    String
+  org     Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  members Membership[]
+  grants  RolePermission[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Membership {
+  id        String           @id @default(cuid())
+  userId    String
+  orgId     String
+  roleId    String
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  role Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  rotatedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Property {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  address   String
+  city      String
+  country   String   @db.Char(2)
+  phEnabled Boolean  @default(false)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org          Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  units        Unit[]
+  ownerships   PropertyOwnership[]
+  tenancies    Tenancy[]
+  contracts    Contract[]
+  purchases    Purchase[]
+  assemblyActs AssemblyAct[]
+  adminFees    AdminFee[]
+  houseRules   HouseRule[]
+
+  @@index([orgId])
+}
+
+model Unit {
+  id         String      @id @default(cuid())
+  propertyId String
+  code       String
+  subtype    UnitSubtype
+  areaM2     Decimal?    @db.Decimal(10, 2)
+  config     Json?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  property      Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenancies     Tenancy[]
+  meterReadings MeterReading[]
+
+  @@unique([propertyId, code])
+  @@index([propertyId])
+}
+
+model Owner {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  taxId     String?
+  email     String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerships PropertyOwnership[]
+  votes      Vote[]
+
+  @@index([orgId])
+}
+
+model PropertyOwnership {
+  id         String    @id @default(cuid())
+  propertyId String
+  ownerId    String
+  sharePct   Decimal   @db.Decimal(5, 2)
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  owner    Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([ownerId])
+}
+
+model Tenant {
+  id         String   @id @default(cuid())
+  orgId      String
+  name       String
+  documentId String?
+  email      String?
+  phone      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenancies Tenancy[]
+  contracts Contract[]
+
+  @@index([orgId])
+}
+
+model Tenancy {
+  id         String    @id @default(cuid())
+  orgId      String
+  propertyId String
+  unitId     String?
+  tenantId   String
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  property Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     Unit?        @relation(fields: [unitId], references: [id])
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([propertyId])
+  @@index([tenantId])
+}
+
+model Contract {
+  id         String         @id @default(cuid())
+  orgId      String
+  propertyId String
+  unitId     String?
+  tenantId   String
+  number     String
+  status     ContractStatus @default(DRAFT)
+  startDate  DateTime       @db.Date
+  endDate    DateTime       @db.Date
+  rentAmount Decimal        @db.Decimal(19, 4)
+  currency   String         @db.Char(3)
+  terms      Json?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  org          Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  property     Property             @relation(fields: [propertyId], references: [id])
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  codeudores   Codeudor[]
+  charges      Charge[]
+  payments     Payment[]
+  deposits     Deposit[]
+  termination  ContractTermination?
+  lateFeeRules LateFeeRule[]
+
+  @@unique([orgId, number])
+  @@index([orgId])
+  @@index([propertyId])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model Codeudor {
+  id         String    @id @default(cuid())
+  contractId String
+  name       String
+  documentId String?
+  contact    String?
+  validFrom  DateTime  @db.Date
+  validUntil DateTime? @db.Date
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+model ContractTermination {
+  id            String   @id @default(cuid())
+  contractId    String   @unique
+  noticeDate    DateTime @db.Date
+  effectiveDate DateTime @db.Date
+  cause         String
+  indemnityRef  String?
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+model Charge {
+  id          String       @id @default(cuid())
+  orgId       String
+  contractId  String
+  type        ChargeType
+  description String
+  amount      Decimal      @db.Decimal(19, 4)
+  currency    String       @db.Char(3)
+  dueDate     DateTime     @db.Date
+  period      String
+  status      ChargeStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contract      Contract       @relation(fields: [contractId], references: [id])
+  allocations   Allocation[]
+  dunningEvents DunningEvent[]
+
+  @@unique([contractId, period, type])
+  @@index([orgId])
+  @@index([contractId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model MeterReading {
+  id          String   @id @default(cuid())
+  unitId      String
+  utility     String
+  value       Decimal  @db.Decimal(19, 4)
+  readingDate DateTime @db.Date
+  photoRef    String?
+  anomaly     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  unit Unit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+}
+
+model Payment {
+  id         String        @id @default(cuid())
+  orgId      String
+  contractId String
+  amount     Decimal       @db.Decimal(19, 4)
+  currency   String        @db.Char(3)
+  method     PaymentMethod
+  reference  String?
+  paidAt     DateTime
+  createdAt  DateTime      @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contract    Contract     @relation(fields: [contractId], references: [id])
+  allocations Allocation[]
+  receipt     Receipt?
+
+  @@index([orgId])
+  @@index([contractId])
+}
+
+model Receipt {
+  id        String   @id @default(cuid())
+  paymentId String   @unique
+  number    String
+  locale    String
+  issuedAt  DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([number])
+}
+
+model Allocation {
+  id        String  @id @default(cuid())
+  paymentId String
+  chargeId  String
+  amount    Decimal @db.Decimal(19, 4)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  charge  Charge  @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([chargeId])
+}
+
+model Deposit {
+  id         String   @id @default(cuid())
+  contractId String
+  held       Decimal  @db.Decimal(19, 4)
+  currency   String   @db.Char(3)
+  deducted   Decimal  @default(0) @db.Decimal(19, 4)
+  returned   Decimal  @default(0) @db.Decimal(19, 4)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+model DunningEvent {
+  id       String              @id @default(cuid())
+  chargeId String
+  stage    DunningStage
+  channel  NotificationChannel
+  sentAt   DateTime            @default(now())
+  state    String              @default("sent")
+
+  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  @@unique([chargeId, stage, channel])
+  @@index([chargeId])
+}
+
+model LateFeeRule {
+  id         String          @id @default(cuid())
+  scope      LateFeeScope
+  orgId      String?
+  contractId String?
+  rateType   LateFeeRateType
+  rate       Decimal         @db.Decimal(10, 4)
+  graceDays  Int             @default(0)
+  base       LateFeeBase     @default(TOTAL_DUE)
+
+  org      Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contract Contract?     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([contractId])
+}
+
+model RentIncreaseIndex {
+  id        String      @id @default(cuid())
+  country   String      @db.Char(2)
+  period    String
+  value     Decimal     @db.Decimal(8, 4)
+  source    IndexSource
+  fetchedBy String?
+  fetchedAt DateTime    @default(now())
+
+  @@unique([country, period])
+  @@index([country])
+}
+
+model Account {
+  id        String   @id @default(cuid())
+  orgId     String
+  code      String
+  name      String
+  createdAt DateTime @default(now())
+
+  org          Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  orgId String
+  name  String
+
+  org          Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model FinancialTransaction {
+  id         String   @id @default(cuid())
+  orgId      String
+  accountId  String
+  categoryId String?
+  amount     Decimal  @db.Decimal(19, 4)
+  currency   String   @db.Char(3)
+  source     String
+  occurredAt DateTime
+  reference  String?
+  createdAt  DateTime @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  account  Account      @relation(fields: [accountId], references: [id])
+  category Category?    @relation(fields: [categoryId], references: [id])
+
+  @@index([orgId])
+  @@index([accountId])
+}
+
+model BankTransaction {
+  id            String   @id @default(cuid())
+  orgId         String
+  bank          String
+  accountRef    String
+  amount        Decimal  @db.Decimal(19, 4)
+  currency      String   @db.Char(3)
+  reference     String?
+  transactionAt DateTime
+  raw           Json?
+  quarantined   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  reconciliation Reconciliation?
+
+  @@unique([bank, accountRef, transactionAt, amount, reference])
+  @@index([orgId])
+}
+
+model Reconciliation {
+  id                String   @id @default(cuid())
+  bankTransactionId String   @unique
+  confirmedBy       String
+  confirmedAt       DateTime @default(now())
+  note              String?
+
+  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id], onDelete: Cascade)
+}
+
+model CommissionRule {
+  id         String   @id @default(cuid())
+  orgId      String
+  scopeType  String
+  scopeId    String?
+  percentage Decimal? @db.Decimal(5, 2)
+  fixedFee   Decimal? @db.Decimal(19, 4)
+  currency   String?  @db.Char(3)
+
+  @@index([orgId])
+}
+
+model Settlement {
+  id         String    @id @default(cuid())
+  orgId      String
+  propertyId String
+  period     String
+  collected  Decimal   @db.Decimal(19, 4)
+  commission Decimal   @db.Decimal(19, 4)
+  deductions Decimal   @default(0) @db.Decimal(19, 4)
+  net        Decimal   @db.Decimal(19, 4)
+  currency   String    @db.Char(3)
+  payoutRef  String?
+  payoutAt   DateTime?
+  createdAt  DateTime  @default(now())
+
+  org   Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  lines SettlementLine[]
+
+  @@unique([propertyId, period])
+  @@index([orgId])
+}
+
+model SettlementLine {
+  id           String  @id @default(cuid())
+  settlementId String
+  ownerId      String
+  sharePct     Decimal @db.Decimal(5, 2)
+  gross        Decimal @db.Decimal(19, 4)
+  net          Decimal @db.Decimal(19, 4)
+
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
+}
+
+model DocumentTemplate {
+  id       String @id @default(cuid())
+  orgId    String
+  name     String
+  language String
+  version  Int    @default(1)
+  body     String
+
+  documents Document[]
+
+  @@index([orgId])
+}
+
+model Document {
+  id         String         @id @default(cuid())
+  orgId      String
+  templateId String?
+  title      String
+  status     DocumentStatus @default(DRAFT)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  org        Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  template   DocumentTemplate? @relation(fields: [templateId], references: [id])
+  versions   DocumentVersion[]
+  approvals  Approval[]
+  signatures Signature[]
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  body       String
+  storageRef String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([documentId])
+}
+
+model Approval {
+  id         String    @id @default(cuid())
+  documentId String
+  approverId String
+  approved   Boolean?
+  decidedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model Signature {
+  id         String   @id @default(cuid())
+  documentId String
+  signerId   String
+  signedAt   DateTime @default(now())
+  proof      String?
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model MaintenanceRequest {
+  id          String              @id @default(cuid())
+  orgId       String
+  propertyId  String
+  unitId      String?
+  title       String
+  description String
+  priority    MaintenancePriority @default(MEDIUM)
+  status      MaintenanceStatus   @default(OPEN)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  workOrders WorkOrder[]
+
+  @@index([orgId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model WorkOrder {
+  id         String            @id @default(cuid())
+  requestId  String
+  supplierId String?
+  status     MaintenanceStatus @default(OPEN)
+  cost       Decimal?          @db.Decimal(19, 4)
+  currency   String?           @db.Char(3)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  request  MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  supplier Supplier?          @relation(fields: [supplierId], references: [id])
+
+  @@index([requestId])
+}
+
+model Supplier {
+  id       String  @id @default(cuid())
+  orgId    String
+  name     String
+  category String
+  contact  String?
+  taxId    String?
+  address  String?
+  notes    String?
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workOrders WorkOrder[]
+  purchases  Purchase[]
+
+  @@index([orgId])
+}
+
+model Purchase {
+  id          String   @id @default(cuid())
+  orgId       String
+  propertyId  String
+  unitId      String?
+  supplierId  String?
+  place       String?
+  description String
+  amount      Decimal  @db.Decimal(19, 4)
+  currency    String   @db.Char(3)
+  date        DateTime @db.Date
+  receiptRef  String?
+  recordedBy  String
+  createdAt   DateTime @default(now())
+
+  property Property  @relation(fields: [propertyId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([orgId])
+  @@index([propertyId])
+}
+
+model Complaint {
+  id         String   @id @default(cuid())
+  orgId      String
+  propertyId String
+  reporter   String
+  subject    String
+  body       String
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([propertyId])
+}
+
+model Claim {
+  id         String   @id @default(cuid())
+  orgId      String
+  propertyId String
+  subject    String
+  body       String
+  status     String   @default("open")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([propertyId])
+}
+
+model Insurance {
+  id         String   @id @default(cuid())
+  orgId      String
+  propertyId String?
+  contractId String?
+  provider   String
+  policyRef  String
+  validFrom  DateTime @db.Date
+  validUntil DateTime @db.Date
+
+  @@index([orgId])
+}
+
+model TaxRecord {
+  id         String   @id @default(cuid())
+  orgId      String
+  country    String   @db.Char(2)
+  label      String
+  dueDate    DateTime @db.Date
+  receiptRef String?
+  createdAt  DateTime @default(now())
+
+  @@index([orgId])
+  @@index([dueDate])
+}
+
+model HouseRule {
+  id         String   @id @default(cuid())
+  propertyId String
+  version    Int      @default(1)
+  body       String
+  createdAt  DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model AdminFee {
+  id            String       @id @default(cuid())
+  propertyId    String
+  type          AdminFeeType
+  amount        Decimal      @db.Decimal(19, 4)
+  currency      String       @db.Char(3)
+  dueDate       DateTime     @db.Date
+  assemblyActId String?
+
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  assemblyAct AssemblyAct? @relation(fields: [assemblyActId], references: [id])
+
+  @@index([propertyId])
+}
+
+model AssemblyAct {
+  id         String   @id @default(cuid())
+  propertyId String
+  heldAt     DateTime
+  attendance Json?
+  quorumMet  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  decisions Decision[]
+  adminFees AdminFee[]
+
+  @@index([propertyId])
+}
+
+model Decision {
+  id            String           @id @default(cuid())
+  assemblyActId String
+  title         String
+  description   String?
+  majority      AssemblyMajority
+
+  assemblyAct AssemblyAct @relation(fields: [assemblyActId], references: [id], onDelete: Cascade)
+  votes       Vote[]
+
+  @@index([assemblyActId])
+}
+
+model Vote {
+  id         String     @id @default(cuid())
+  decisionId String
+  ownerId    String?
+  weight     Decimal    @db.Decimal(8, 4)
+  choice     VoteChoice
+
+  decision Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+  owner    Owner?   @relation(fields: [ownerId], references: [id])
+
+  @@index([decisionId])
+}
+
+model Communication {
+  id         String   @id @default(cuid())
+  orgId      String
+  sender     String
+  recipients Json
+  subject    String?
+  body       String
+  locale     String
+  sentAt     DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  orgId     String
+  userId    String?
+  channel   NotificationChannel
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([userId])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  orgId      String?
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  org   Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor User?         @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model OutboxEvent {
+  id            String    @id @default(cuid())
+  orgId         String?
+  aggregateType String
+  aggregateId   String
+  type          String
+  payload       Json
+  occurredAt    DateTime  @default(now())
+  processedAt   DateTime?
+  attempts      Int       @default(0)
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([processedAt, occurredAt])
+}

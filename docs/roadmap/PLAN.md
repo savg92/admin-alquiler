@@ -54,8 +54,8 @@ E2E gate is green.
 
 - [x] OpenAPI starter (NestJS Swagger code-first; `GET /openapi.json` is the contract)
 - [x] `Idempotency-Key` convention on POST (24h window, 409 on key+payload mismatch)
-- [ ] Prisma Migrate with versioned reviewable SQL
-- [ ] Locale-parameterized seed (Colombia `es-CO`/`CO`/`COP` ships first)
+- [x] Prisma Migrate with versioned reviewable SQL
+- [x] Locale-parameterized seed (Colombia `es-CO`/`CO`/`COP` ships first)
 
 ### WS-2 — Identity and organizations [Stage B]
 

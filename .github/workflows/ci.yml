@@ -38,6 +38,10 @@ jobs:
 
   integration:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://admin_alquiler:test-password@localhost:5432/admin_alquiler_test
+      REDIS_URL: redis://localhost:6379
+      SEED_LOCALE: es-CO
     services:
       postgres:
         image: postgres:16-alpine
@@ -67,7 +71,7 @@ jobs:
         with:
           bun-version: "1.4.2"
       - run: bun install --frozen-lockfile
+      - run: bun run --filter '@admin-alquiler/database' db:generate
+      - run: bun run --filter '@admin-alquiler/database' db:migrate
+      - run: bun run --filter '@admin-alquiler/database' db:seed
       - run: bun run test:integration
-        env:
-          DATABASE_URL: postgresql://admin_alquiler:test-password@localhost:5432/admin_alquiler_test
-          REDIS_URL: redis://localhost:6379
