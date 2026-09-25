@@ -1,3 +1,5 @@
+import type { MembershipStatus } from "@admin-alquiler/permissions";
+
 export interface OrgInput {
   name: string;
   slug?: string | undefined;
@@ -17,6 +19,13 @@ export interface OrgRow {
   timezone: string;
 }
 
+export interface MemberRow {
+  userId: string;
+  orgId: string;
+  status: MembershipStatus;
+  roleName: string;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -28,6 +37,7 @@ export interface AuditInput {
 
 export interface OrgsStore {
   findOrgBySlug(slug: string): Promise<{ id: string } | null>;
+  findOrgById(id: string): Promise<{ id: string } | null>;
   createOrg(data: {
     slug: string;
     name: string;
@@ -38,5 +48,13 @@ export interface OrgsStore {
   }): Promise<OrgRow>;
   ensureAdminRole(orgId: string, permissions: string[]): Promise<{ id: string; name: string }>;
   createMembership(userId: string, orgId: string, roleId: string): Promise<void>;
+  listMembers(orgId: string): Promise<MemberRow[]>;
+  findMembership(orgId: string, userId: string): Promise<MemberRow | null>;
+  findRoleByName(orgId: string, name: string): Promise<{ id: string; name: string } | null>;
+  updateMembership(
+    orgId: string,
+    userId: string,
+    data: { roleId?: string; status?: MembershipStatus },
+  ): Promise<MemberRow>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

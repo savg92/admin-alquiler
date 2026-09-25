@@ -60,7 +60,7 @@ E2E gate is green.
 ### WS-2 — Identity and organizations [Stage B]
 
 - [x] Users, organizations, memberships
-- [/] Roles + permissions + authorization policies (deny by default, server-side)
+- [x] Roles + permissions + authorization policies (deny by default, server-side)
 - [x] Sessions + password authentication (expiry, rotation)
 - [x] Audit events for identity/role changes
 - [x] Verified: org isolation tests, unauthorized-access tests, session-expiry tests

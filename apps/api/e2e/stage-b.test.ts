@@ -141,6 +141,63 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return role;
   }
 
+  async findOrgById(id: string): Promise<{ id: string } | null> {
+    return this.orgs.get(id) ?? null;
+  }
+
+  async listMembers(
+    orgId: string,
+  ): Promise<{ userId: string; orgId: string; status: "ACTIVE"; roleName: string }[]> {
+    const rows: { userId: string; orgId: string; status: "ACTIVE"; roleName: string }[] = [];
+    for (const [userId, memberships] of this.memberships.entries()) {
+      for (const membership of memberships) {
+        if (membership.orgId === orgId) {
+          rows.push({ userId, orgId, status: "ACTIVE", roleName: membership.roleName });
+        }
+      }
+    }
+    return rows;
+  }
+
+  async findMembership(
+    orgId: string,
+    userId: string,
+  ): Promise<{ userId: string; orgId: string; status: "ACTIVE"; roleName: string } | null> {
+    const membership = (this.memberships.get(userId) ?? []).find((entry) => entry.orgId === orgId);
+    if (!membership) {
+      return null;
+    }
+    return { userId, orgId, status: "ACTIVE", roleName: membership.roleName };
+  }
+
+  async findRoleByName(orgId: string, name: string): Promise<{ id: string; name: string } | null> {
+    for (const role of this.roles.values()) {
+      if (role.name === name) {
+        return role;
+      }
+    }
+    if (name === "admin") {
+      return this.ensureAdminRole(orgId);
+    }
+    return null;
+  }
+
+  async updateMembership(
+    orgId: string,
+    userId: string,
+    data: { roleId?: string; status?: "ACTIVE" | "SUSPENDED" | "REVOKED" },
+  ): Promise<{ userId: string; orgId: string; status: "ACTIVE"; roleName: string }> {
+    const list = this.memberships.get(userId) ?? [];
+    const entry = list.find((item) => item.orgId === orgId);
+    if (!entry) {
+      throw new Error("Membership not found.");
+    }
+    if (data.roleId !== undefined) {
+      entry.roleName = this.roles.get(data.roleId)?.name ?? entry.roleName;
+    }
+    return { userId, orgId, status: "ACTIVE", roleName: entry.roleName };
+  }
+
   async createMembership(userId: string, orgId: string, roleId: string): Promise<void> {
     const role = this.roles.get(roleId);
     const list = this.memberships.get(userId) ?? [];

@@ -1,5 +1,5 @@
 import { prisma } from "@admin-alquiler/database";
-import type { AuditInput, OrgRow, OrgsStore } from "./store";
+import type { AuditInput, MemberRow, OrgRow, OrgsStore } from "./store";
 
 function toJsonInput(value: Record<string, unknown>): object {
   return JSON.parse(JSON.stringify(value)) as object;
@@ -8,6 +8,10 @@ function toJsonInput(value: Record<string, unknown>): object {
 export class PrismaOrgsStore implements OrgsStore {
   async findOrgBySlug(slug: string): Promise<{ id: string } | null> {
     return prisma.organization.findUnique({ where: { slug }, select: { id: true } });
+  }
+
+  async findOrgById(id: string): Promise<{ id: string } | null> {
+    return prisma.organization.findUnique({ where: { id }, select: { id: true } });
   }
 
   async createOrg(data: {
@@ -52,6 +56,59 @@ export class PrismaOrgsStore implements OrgsStore {
 
   async createMembership(userId: string, orgId: string, roleId: string): Promise<void> {
     await prisma.membership.create({ data: { userId, orgId, roleId } });
+  }
+
+  async listMembers(orgId: string): Promise<MemberRow[]> {
+    const rows = await prisma.membership.findMany({
+      where: { orgId },
+      select: { userId: true, orgId: true, status: true, role: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map((row) => ({
+      userId: row.userId,
+      orgId: row.orgId,
+      status: row.status,
+      roleName: row.role.name,
+    }));
+  }
+
+  async findMembership(orgId: string, userId: string): Promise<MemberRow | null> {
+    const row = await prisma.membership.findUnique({
+      where: { userId_orgId: { userId, orgId } },
+      select: { userId: true, orgId: true, status: true, role: { select: { name: true } } },
+    });
+    if (!row) {
+      return null;
+    }
+    return { userId: row.userId, orgId: row.orgId, status: row.status, roleName: row.role.name };
+  }
+
+  async findRoleByName(orgId: string, name: string): Promise<{ id: string; name: string } | null> {
+    return prisma.role.findUnique({
+      where: { orgId_name: { orgId, name } },
+      select: { id: true, name: true },
+    });
+  }
+
+  async updateMembership(
+    orgId: string,
+    userId: string,
+    data: { roleId?: string; status?: "ACTIVE" | "SUSPENDED" | "REVOKED" },
+  ): Promise<MemberRow> {
+    const updated = await prisma.membership.update({
+      where: { userId_orgId: { userId, orgId } },
+      data: {
+        ...(data.roleId === undefined ? {} : { roleId: data.roleId }),
+        ...(data.status === undefined ? {} : { status: data.status }),
+      },
+      select: { userId: true, orgId: true, status: true, role: { select: { name: true } } },
+    });
+    return {
+      userId: updated.userId,
+      orgId: updated.orgId,
+      status: updated.status,
+      roleName: updated.role.name,
+    };
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {

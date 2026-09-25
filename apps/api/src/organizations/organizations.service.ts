@@ -1,7 +1,15 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { buildAuditEvent } from "@admin-alquiler/domain";
+import type { MembershipStatus } from "@admin-alquiler/permissions";
 import { ORGS_STORE } from "./tokens";
-import type { OrgInput, OrgRow, OrgsStore } from "./store";
+import type { MemberRow, OrgInput, OrgRow, OrgsStore } from "./store";
 
 const BASELINE_PERMISSIONS = [
   "property:read",
@@ -64,5 +72,77 @@ export class OrganizationsService {
       }),
     );
     return created;
+  }
+
+  async listMembers(orgId: string): Promise<MemberRow[]> {
+    const org = await this.store.findOrgById(orgId);
+    if (!org) {
+      throw new NotFoundException("Organization not found.");
+    }
+    return this.store.listMembers(orgId);
+  }
+
+  async updateMember(
+    orgId: string,
+    actorId: string,
+    targetUserId: string,
+    input: { roleName?: unknown; status?: unknown },
+  ): Promise<MemberRow> {
+    const org = await this.store.findOrgById(orgId);
+    if (!org) {
+      throw new NotFoundException("Organization not found.");
+    }
+    if (actorId === targetUserId) {
+      throw new ForbiddenException("You cannot change your own membership.");
+    }
+    const current = await this.store.findMembership(orgId, targetUserId);
+    if (!current) {
+      throw new NotFoundException("Membership not found.");
+    }
+    let roleId: string | undefined;
+    if (input.roleName !== undefined) {
+      if (typeof input.roleName !== "string" || input.roleName.trim().length === 0) {
+        throw new BadRequestException("Role name is required.");
+      }
+      const role = await this.store.findRoleByName(orgId, input.roleName.trim());
+      if (!role) {
+        throw new NotFoundException("Role not found in this organization.");
+      }
+      roleId = role.id;
+    }
+    let status: MembershipStatus | undefined;
+    if (input.status !== undefined) {
+      if (input.status !== "ACTIVE" && input.status !== "SUSPENDED" && input.status !== "REVOKED") {
+        throw new BadRequestException("Status must be ACTIVE, SUSPENDED or REVOKED.");
+      }
+      status = input.status;
+    }
+    if (roleId === undefined && status === undefined) {
+      throw new BadRequestException("Nothing to update. Provide roleName and/or status.");
+    }
+    const updated = await this.store.updateMembership(orgId, targetUserId, {
+      ...(roleId === undefined ? {} : { roleId }),
+      ...(status === undefined ? {} : { status }),
+    });
+    const changes: string[] = [];
+    if (roleId !== undefined && current.roleName !== updated.roleName) {
+      changes.push("member.role_changed");
+    }
+    if (status !== undefined && current.status !== updated.status) {
+      changes.push("member.status_changed");
+    }
+    for (const action of changes.length > 0 ? changes : ["member.updated"]) {
+      await this.store.writeAuditEvent(
+        buildAuditEvent({
+          orgId,
+          actorId,
+          action,
+          entityType: "Membership",
+          entityId: targetUserId,
+          metadata: { roleName: updated.roleName, status: updated.status },
+        }),
+      );
+    }
+    return updated;
   }
 }
