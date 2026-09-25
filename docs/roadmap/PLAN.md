@@ -61,8 +61,8 @@ E2E gate is green.
 
 - [ ] Users, organizations, memberships
 - [/] Roles + permissions + authorization policies (deny by default, server-side)
-- [ ] Sessions + password authentication (expiry, rotation)
-- [ ] Audit events for identity/role changes
+- [x] Sessions + password authentication (expiry, rotation)
+- [x] Audit events for identity/role changes
 - [ ] Verified: org isolation tests, unauthorized-access tests, session-expiry tests
 
 ### WS-3 — Properties and people [Stage B]
