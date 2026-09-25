@@ -19,7 +19,26 @@ export interface SettlementDetail {
   deductionsMinor: number;
   netMinor: number;
   currency: string;
+  payoutRef: string | null;
+  payoutAt: string | null;
   lines: SettlementLineInput[];
+}
+
+export interface CommissionRuleInput {
+  scopeType: string;
+  scopeId?: string | undefined;
+  percentage?: number | undefined;
+  fixedFeeMinor?: number | undefined;
+  currency?: string | undefined;
+}
+
+export interface CommissionRuleRow {
+  id: string;
+  scopeType: string;
+  scopeId: string | null;
+  percentage: number | null;
+  fixedFeeMinor: number | null;
+  currency: string | null;
 }
 
 export interface AuditInput {
@@ -39,6 +58,7 @@ export interface SettlementsStore {
   findCommissionPct(orgId: string, propertyId: string): Promise<number>;
   findSettlement(propertyId: string, period: string): Promise<SettlementDetail | null>;
   findSettlementById(id: string, orgId: string): Promise<SettlementDetail | null>;
+  recordPayout(id: string, transferRef: string, paidAt: Date): Promise<SettlementDetail>;
   createSettlement(data: {
     orgId: string;
     propertyId: string;

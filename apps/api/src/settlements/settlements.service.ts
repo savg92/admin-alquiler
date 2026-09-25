@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { buildAuditEvent, periodDueDate } from "@admin-alquiler/domain";
+import { buildAuditEvent, periodDueDate, validateTransferRef } from "@admin-alquiler/domain";
 import { SETTLEMENTS_STORE } from "./tokens";
 import type { SettlementDetail, SettlementLineInput, SettlementsStore } from "./store";
 
@@ -112,5 +112,39 @@ export class SettlementsService {
       throw new NotFoundException("Settlement not found.");
     }
     return found;
+  }
+
+  async recordPayout(
+    id: string,
+    orgId: string,
+    actorId: string,
+    transferRef: unknown,
+  ): Promise<SettlementDetail> {
+    let ref: string;
+    try {
+      ref = validateTransferRef(transferRef);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid payout.");
+    }
+    const found = await this.store.findSettlementById(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Settlement not found.");
+    }
+    if (found.payoutRef) {
+      throw new BadRequestException("Settlement payout already recorded.");
+    }
+    const paidAt = new Date();
+    const updated = await this.store.recordPayout(id, ref, paidAt);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "settlement.payout_recorded",
+        entityType: "Settlement",
+        entityId: id,
+        metadata: { transferRef: ref },
+      }),
+    );
+    return updated;
   }
 }

@@ -17,6 +17,8 @@ function toDetail(
     commission: { toNumber(): number };
     deductions: { toNumber(): number };
     net: { toNumber(): number };
+    payoutRef: string | null;
+    payoutAt: Date | null;
   },
   lines: {
     ownerId: string;
@@ -34,6 +36,8 @@ function toDetail(
     deductionsMinor: toMinor(settlement.deductions),
     netMinor: toMinor(settlement.net),
     currency: settlement.currency,
+    payoutRef: settlement.payoutRef,
+    payoutAt: settlement.payoutAt?.toISOString() ?? null,
     lines: lines.map((line) => ({
       ownerId: line.ownerId,
       sharePct: line.sharePct.toNumber(),
@@ -143,6 +147,15 @@ export class PrismaSettlementsStore implements SettlementsStore {
       include: { lines: true },
     });
     return toDetail(created, created.lines);
+  }
+
+  async recordPayout(id: string, transferRef: string, paidAt: Date): Promise<SettlementDetail> {
+    const updated = await prisma.settlement.update({
+      where: { id },
+      data: { payoutRef: transferRef, payoutAt: paidAt },
+      include: { lines: true },
+    });
+    return toDetail(updated, updated.lines);
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {

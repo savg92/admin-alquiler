@@ -61,4 +61,18 @@ export class SettlementsController {
   getSettlement(@Req() req: ActorRequest, @Param("id") id: string) {
     return this.settlements.getSettlement(id, orgIdOf(req));
   }
+
+  @Post("settlements/:id/payout")
+  @RequirePermission("settlement:write")
+  @ApiResponse({
+    status: 201,
+    description: "Recorded payout with transfer ref (statement → receipt traceability).",
+  })
+  recordPayout(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { transferRef } = body as { transferRef?: unknown };
+    return this.settlements.recordPayout(id, orgIdOf(req), actorIdOf(req), transferRef);
+  }
 }

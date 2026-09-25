@@ -96,7 +96,7 @@ E2E gate is green.
 - [x] Reconciliation (manual confirm with suggestions; OCR assist-only, human posts)
 - [ ] Periods + monthly/yearly statements
 - [ ] v1 KPI set: occupancy, delinquency rate, upcoming expirations, maintenance SLA, per-property P&L/EBIT
-- [ ] Owner settlements (commission rules; monthly statements; ownership-% splits; recorded payouts)
+- [x] Owner settlements (commission rules; monthly statements; ownership-% splits; recorded payouts)
 
 ### WS-6 — Documents [Stage D]
 

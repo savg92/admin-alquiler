@@ -471,9 +471,23 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     lines: { ownerId: string; sharePct: number; grossMinor: number; netMinor: number }[];
   }): Promise<SettlementDetail> {
     const id = `settlement-${this.settlements.size + 1}`;
-    const detail: SettlementDetail = { id, ...data };
+    const detail: SettlementDetail = { id, ...data, payoutRef: null, payoutAt: null };
     this.settlements.set(id, detail);
     return detail;
+  }
+
+  async recordPayout(id: string, transferRef: string, paidAt: Date): Promise<SettlementDetail> {
+    const existing = this.settlements.get(id);
+    if (!existing) {
+      throw new Error("Settlement not found.");
+    }
+    const updated: SettlementDetail = {
+      ...existing,
+      payoutRef: transferRef,
+      payoutAt: paidAt.toISOString(),
+    };
+    this.settlements.set(id, updated);
+    return updated;
   }
 
   async writeAuditEvent(event: { action: string }): Promise<void> {
