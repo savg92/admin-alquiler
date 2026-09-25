@@ -5,7 +5,7 @@
 ```text
 Web/PWA
    ↓
-Next.js
+React + Vite SPA (static; no SSR)
    ↓
 NestJS API
    ↓

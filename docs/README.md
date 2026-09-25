@@ -31,7 +31,7 @@ Admin alquiler is a secure, mobile-first, multi-organization property and rental
 
 ## Technology baseline
 
-- Frontend: Next.js App Router, TypeScript, PWA.
+- Frontend: React + Vite SPA, TypeScript, PWA (TanStack Router + Query; static build served by Caddy — no SSR, no server runtime).
 - Backend: NestJS, TypeScript.
 - Runtime/package manager: Bun where appropriate.
 - Database: PostgreSQL.
