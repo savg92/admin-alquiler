@@ -40,7 +40,7 @@ export class PrismaPropertiesStore implements PropertiesStore {
           })),
         },
       },
-      include: { units: { select: { id: true, code: true, subtype: true } } },
+      include: { units: { select: { id: true, code: true, subtype: true, config: true } } },
     });
     return {
       id: created.id,
@@ -50,7 +50,11 @@ export class PrismaPropertiesStore implements PropertiesStore {
       city: created.city,
       country: created.country,
       phEnabled: created.phEnabled,
-      units: created.units,
+      config: (created.config ?? null) as Record<string, unknown> | null,
+      units: created.units.map((unit) => ({
+        ...unit,
+        config: (unit.config ?? null) as Record<string, unknown> | null,
+      })),
     };
   }
 
@@ -73,7 +77,7 @@ export class PrismaPropertiesStore implements PropertiesStore {
   async findProperty(id: string, orgId: string): Promise<PropertyDetail | null> {
     const found = await prisma.property.findFirst({
       where: { id, orgId },
-      include: { units: { select: { id: true, code: true, subtype: true } } },
+      include: { units: { select: { id: true, code: true, subtype: true, config: true } } },
     });
     if (!found) {
       return null;
@@ -86,10 +90,59 @@ export class PrismaPropertiesStore implements PropertiesStore {
       city: found.city,
       country: found.country,
       phEnabled: found.phEnabled,
-      units: found.units,
+      config: (found.config ?? null) as Record<string, unknown> | null,
+      units: found.units.map((unit) => ({
+        ...unit,
+        config: (unit.config ?? null) as Record<string, unknown> | null,
+      })),
     };
   }
 
+  async updatePropertyConfig(
+    id: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<PropertyDetail | null> {
+    const existing = await prisma.property.findFirst({
+      where: { id, orgId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return null;
+    }
+    await prisma.property.update({ where: { id }, data: { config: toJsonInput(config) } });
+    return this.findProperty(id, orgId);
+  }
+
+  async updateUnitConfig(
+    unitId: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<{
+    id: string;
+    code: string;
+    subtype: string;
+    config: Record<string, unknown> | null;
+  } | null> {
+    const existing = await prisma.unit.findFirst({
+      where: { id: unitId, property: { orgId } },
+      select: { id: true },
+    });
+    if (!existing) {
+      return null;
+    }
+    const updated = await prisma.unit.update({
+      where: { id: unitId },
+      data: { config: toJsonInput(config) },
+      select: { id: true, code: true, subtype: true, config: true },
+    });
+    return {
+      id: updated.id,
+      code: updated.code,
+      subtype: updated.subtype,
+      config: (updated.config ?? null) as Record<string, unknown> | null,
+    };
+  }
   async unitTenancyPeriods(unitId: string): Promise<TenancyPeriod[]> {
     const rows = await prisma.tenancy.findMany({
       where: { unitId },

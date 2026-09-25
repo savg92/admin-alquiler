@@ -3,6 +3,7 @@ import {
   setupChecklist,
   tenancyPeriodsOverlap,
   validateBulkUnits,
+  validateConfigRecord,
   validateOwnershipShares,
 } from "@admin-alquiler/domain";
 
@@ -72,5 +73,21 @@ describe("guided property setup", () => {
       tenants: true,
       complete: true,
     });
+  });
+
+  test("config records enforce shape, key and size limits", () => {
+    expect(validateConfigRecord({ floors: 3 }, "config")).toEqual({ floors: 3 });
+    expect(() => validateConfigRecord("nope", "config")).toThrow(/JSON object/);
+    expect(() => validateConfigRecord([{ a: 1 }], "config")).toThrow(/JSON object/);
+    expect(() => validateConfigRecord(JSON.parse('{"__proto__":{"x":1}}'), "config")).toThrow(
+      /forbidden key/,
+    );
+    const tooManyKeys = Object.fromEntries(
+      Array.from({ length: 51 }, (_, index) => [`k${index}`, index]),
+    );
+    expect(() => validateConfigRecord(tooManyKeys, "config")).toThrow(/at most 50 keys/);
+    expect(() => validateConfigRecord({ blob: "x".repeat(10_001) }, "config")).toThrow(
+      /at most 10000 characters/,
+    );
   });
 });

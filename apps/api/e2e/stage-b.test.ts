@@ -279,6 +279,38 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return rest;
   }
 
+  async updatePropertyConfig(
+    id: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<PropertyDetail | null> {
+    const found = this.properties.get(id);
+    if (!found || found.orgId !== orgId) {
+      return null;
+    }
+    found.config = config;
+    const { tenancies: _t, shares: _s, ...rest } = found;
+    return rest;
+  }
+
+  async updateUnitConfig(
+    unitId: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<{ id: string; code: string; subtype: string } | null> {
+    for (const property of this.properties.values()) {
+      if (property.orgId !== orgId) {
+        continue;
+      }
+      const unit = property.units.find((entry) => entry.id === unitId);
+      if (unit) {
+        unit.config = config;
+        return { id: unit.id, code: unit.code, subtype: unit.subtype };
+      }
+    }
+    return null;
+  }
+
   async unitTenancyPeriods(unitId: string): Promise<TenancyPeriod[]> {
     const periods: TenancyPeriod[] = [];
     for (const property of this.properties.values()) {

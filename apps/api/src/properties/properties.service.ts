@@ -4,6 +4,7 @@ import {
   setupChecklist,
   tenancyPeriodsOverlap,
   validateBulkUnits,
+  validateConfigRecord,
   type SetupChecklist,
 } from "@admin-alquiler/domain";
 import { PROPERTIES_STORE } from "./tokens";
@@ -55,6 +56,62 @@ export class PropertiesService {
 
   async listProperties(orgId: string): Promise<PropertyRow[]> {
     return this.store.listProperties(orgId);
+  }
+
+  async updatePropertyConfig(
+    id: string,
+    orgId: string,
+    actorId: string,
+    config: unknown,
+  ): Promise<PropertyDetail> {
+    let record: Record<string, unknown>;
+    try {
+      record = validateConfigRecord(config, "config");
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid config.");
+    }
+    const updated = await this.store.updatePropertyConfig(id, orgId, record);
+    if (!updated) {
+      throw new NotFoundException("Property not found.");
+    }
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "property.config_updated",
+        entityType: "Property",
+        entityId: id,
+      }),
+    );
+    return updated;
+  }
+
+  async updateUnitConfig(
+    unitId: string,
+    orgId: string,
+    actorId: string,
+    config: unknown,
+  ): Promise<{ id: string; code: string; subtype: string }> {
+    let record: Record<string, unknown>;
+    try {
+      record = validateConfigRecord(config, "config");
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid config.");
+    }
+    const updated = await this.store.updateUnitConfig(unitId, orgId, record);
+    if (!updated) {
+      throw new NotFoundException("Unit not found.");
+    }
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "unit.config_updated",
+        entityType: "Unit",
+        entityId: unitId,
+      }),
+    );
+    return updated;
   }
 
   async getProperty(id: string, orgId: string): Promise<PropertyDetail> {

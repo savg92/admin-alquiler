@@ -16,6 +16,7 @@ export interface UnitRow {
   id: string;
   code: string;
   subtype: string;
+  config?: Record<string, unknown> | null | undefined;
 }
 
 export interface PropertyRow {
@@ -30,6 +31,7 @@ export interface PropertyRow {
 
 export interface PropertyDetail extends PropertyRow {
   units: UnitRow[];
+  config?: Record<string, unknown> | null | undefined;
 }
 
 export interface CreatePropertyInput {
@@ -79,6 +81,16 @@ export interface PropertiesStore {
     startDate: Date;
   }): Promise<void>;
   createTenant(orgId: string, name: string): Promise<{ id: string }>;
+  updatePropertyConfig(
+    id: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<PropertyDetail | null>;
+  updateUnitConfig(
+    unitId: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<UnitRow | null>;
   createTenancy(data: {
     orgId: string;
     propertyId: string;

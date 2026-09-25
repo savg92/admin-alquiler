@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -89,6 +90,28 @@ export class PropertiesController {
   @ApiResponse({ status: 200, description: "Guided setup checklist and resumable progress." })
   setupStatus(@Req() req: ActorRequest, @Param("id") id: string) {
     return this.properties.setupStatus(id, orgIdOf(req));
+  }
+
+  @Patch("properties/:id/config")
+  @RequirePermission("property:write")
+  @ApiResponse({ status: 200, description: "Property configuration updated (validated JSON)." })
+  updatePropertyConfig(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { config } = body as { config?: unknown };
+    return this.properties.updatePropertyConfig(id, orgIdOf(req), actorIdOf(req), config);
+  }
+
+  @Patch("units/:id/config")
+  @RequirePermission("property:write")
+  @ApiResponse({ status: 200, description: "Unit configuration updated (validated JSON)." })
+  updateUnitConfig(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { config } = body as { config?: unknown };
+    return this.properties.updateUnitConfig(id, orgIdOf(req), actorIdOf(req), config);
   }
 
   @Post("owners")

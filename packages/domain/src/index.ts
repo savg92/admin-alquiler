@@ -2,9 +2,12 @@ export const DOMAIN_VERSION = "0.1.0";
 export { buildAuditEvent } from "./audit";
 export type { AuditEvent, AuditEventInput } from "./audit";
 export {
+  MAX_CONFIG_BYTES,
+  MAX_CONFIG_KEYS,
   setupChecklist,
   tenancyPeriodsOverlap,
   validateBulkUnits,
+  validateConfigRecord,
   validateOwnershipShares,
 } from "./property-setup";
 export type {

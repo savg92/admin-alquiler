@@ -71,7 +71,7 @@ E2E gate is green.
 - [x] Guided property setup: step checklist, bulk unit creation, org-default prefill, resumable
 - [x] Owners + ownership shares (`PropertyOwnership` with %/dates)
 - [x] Tenants + tenancy periods
-- [ ] Property/unit configuration + photos/records
+- [/] Property/unit configuration + photos/records
 
 ### WS-4 — Rental [Stage B: core → Stage C: remainder]
 

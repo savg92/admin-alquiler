@@ -95,3 +95,27 @@ export function setupChecklist(input: SetupStatusInput): SetupChecklist {
     checklist.details && checklist.units && checklist.owners && checklist.tenants;
   return checklist;
 }
+
+export const MAX_CONFIG_KEYS = 50;
+export const MAX_CONFIG_BYTES = 10_000;
+
+export function validateConfigRecord(value: unknown, field: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`"${field}" must be a JSON object.`);
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length > MAX_CONFIG_KEYS) {
+    throw new Error(`"${field}" must have at most ${MAX_CONFIG_KEYS} keys.`);
+  }
+  for (const key of keys) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      throw new Error(`"${field}" contains a forbidden key "${key}".`);
+    }
+  }
+  const size = JSON.stringify(record).length;
+  if (size > MAX_CONFIG_BYTES) {
+    throw new Error(`"${field}" must be at most ${MAX_CONFIG_BYTES} characters.`);
+  }
+  return record;
+}

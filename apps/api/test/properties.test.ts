@@ -167,6 +167,38 @@ class FakePropertiesStore implements PropertiesStore {
     return { id: `tenancy-${Date.now()}` };
   }
 
+  async updatePropertyConfig(
+    id: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<PropertyDetail | null> {
+    const found = this.properties.get(id);
+    if (!found || found.orgId !== orgId) {
+      return null;
+    }
+    found.config = config;
+    const { tenancies: _t, shares: _s, ...rest } = found;
+    return rest;
+  }
+
+  async updateUnitConfig(
+    unitId: string,
+    orgId: string,
+    config: Record<string, unknown>,
+  ): Promise<{ id: string; code: string; subtype: string } | null> {
+    for (const property of this.properties.values()) {
+      if (property.orgId !== orgId) {
+        continue;
+      }
+      const unit = property.units.find((entry) => entry.id === unitId);
+      if (unit) {
+        unit.config = config;
+        return { id: unit.id, code: unit.code, subtype: unit.subtype };
+      }
+    }
+    return null;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -324,5 +356,62 @@ describe("properties and people", () => {
   test("unauthenticated requests are rejected", async () => {
     const response = await fetch(`${baseUrl}/api/v1/properties`);
     expect(response.status).toBe(403);
+  });
+
+  test("property and unit configs update with validation", async () => {
+    const properties = (await (
+      await fetch(`${baseUrl}/api/v1/properties`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const propertyId = properties[0]?.id ?? "";
+    const config = { floors: 3, amenities: ["gym"], notes: "es-CO" };
+
+    const update = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/config`, {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ config }),
+    });
+    expect(update.status).toBe(200);
+    expect(((await update.json()) as { config: unknown }).config).toEqual(config);
+    expect(propertiesStore.audits).toContain("property.config_updated");
+
+    const detail = (await (
+      await fetch(`${baseUrl}/api/v1/properties/${propertyId}`, { headers: headers() })
+    ).json()) as { units: { id: string }[] };
+    const unitId = detail.units[0]?.id ?? "";
+    const unitUpdate = await fetch(`${baseUrl}/api/v1/units/${unitId}/config`, {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ config: { bedrooms: 2 } }),
+    });
+    expect(unitUpdate.status).toBe(200);
+    expect(propertiesStore.audits).toContain("unit.config_updated");
+  });
+
+  test("invalid configs and unknown ids are rejected", async () => {
+    const properties = (await (
+      await fetch(`${baseUrl}/api/v1/properties`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const propertyId = properties[0]?.id ?? "";
+    const badShapes: unknown[] = ["nope", 42, [{ a: 1 }], { constructor: 1 }];
+    for (const config of badShapes) {
+      const response = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/config`, {
+        method: "PATCH",
+        headers: headers(),
+        body: JSON.stringify({ config }),
+      });
+      expect(response.status).toBe(400);
+    }
+    const missing = await fetch(`${baseUrl}/api/v1/properties/prop-missing/config`, {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ config: { a: 1 } }),
+    });
+    expect(missing.status).toBe(404);
+    const missingUnit = await fetch(`${baseUrl}/api/v1/units/unit-missing/config`, {
+      method: "PATCH",
+      headers: headers(),
+      body: JSON.stringify({ config: { a: 1 } }),
+    });
+    expect(missingUnit.status).toBe(404);
   });
 });
