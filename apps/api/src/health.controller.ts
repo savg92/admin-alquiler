@@ -1,4 +1,5 @@
 import { Controller, Get } from "@nestjs/common";
+import { ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Redis } from "ioredis";
 import { logEvent } from "./logger";
 
@@ -113,14 +114,20 @@ async function checkStorage(): Promise<DependencyCheck> {
   }
 }
 
+@ApiTags("health")
 @Controller()
 export class HealthController {
   @Get("health")
+  @ApiResponse({ status: 200, description: "Liveness probe." })
   health() {
     return { status: "ok", service: "api" };
   }
 
   @Get("ready")
+  @ApiResponse({
+    status: 200,
+    description: "Readiness with dependency checks.",
+  })
   async ready(): Promise<Readiness> {
     const [database, queue, storage] = await Promise.all([
       checkPostgres(),
@@ -142,8 +149,11 @@ export class HealthController {
     return { status, checks: { database, queue, storage } };
   }
 
-  /** Back-compat alias for the web SPA health widget (versioned API). */
   @Get("api/v1/health")
+  @ApiResponse({
+    status: 200,
+    description: "Versioned liveness probe for the web SPA.",
+  })
   apiHealth() {
     return this.health();
   }

@@ -3,12 +3,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "../src/app.module";
+import { setupOpenApi } from "../src/openapi";
 
 let app: INestApplication;
 let baseUrl: string;
 
 beforeAll(async () => {
   app = await NestFactory.create(AppModule, { logger: false });
+  setupOpenApi(app);
   await app.listen(0);
   baseUrl = await app.getUrl();
 });
@@ -33,6 +35,18 @@ describe("WS-12 reliability endpoints", () => {
     expect(response.headers.get("X-Request-Id")).toBe("test-req-1");
   });
 
+  test("GET /openapi.json serves the code-first contract", async () => {
+    const response = await fetch(`${baseUrl}/openapi.json`);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      openapi: string;
+      paths: Record<string, unknown>;
+    };
+    expect(typeof body.openapi).toBe("string");
+    expect("/health" in body.paths).toBe(true);
+    expect("/ready" in body.paths).toBe(true);
+    expect("/api/v1/queues" in body.paths).toBe(true);
+  });
   test("GET /ready reports per-dependency status without 500ing", async () => {
     const response = await fetch(`${baseUrl}/ready`);
     expect(response.status).toBe(200);

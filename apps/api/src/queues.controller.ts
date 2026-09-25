@@ -1,5 +1,6 @@
 import { listQueues } from "@admin-alquiler/events";
 import { Controller, Get } from "@nestjs/common";
+import { ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 
@@ -34,9 +35,14 @@ function withTimeout<T>(
  * registered queue. Unreachable Redis degrades per-queue, never 500s the
  * endpoint (monitoring must work during incidents).
  */
+@ApiTags("queues")
 @Controller("api/v1")
 export class QueuesController {
   @Get("queues")
+  @ApiResponse({
+    status: 200,
+    description: "Depth, failures and dead-letter visibility per queue.",
+  })
   async queues(): Promise<{ queues: QueueHealth[] }> {
     const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379", {
       lazyConnect: true,
