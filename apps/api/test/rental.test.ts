@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
+import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
