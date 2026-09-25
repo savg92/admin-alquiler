@@ -1,0 +1,63 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+.bun-cache/
+
+# Builds / outputs
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Testing / QA
+coverage/
+test-results/
+playwright-report/
+blob-report/
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# Env / secrets (commit only .env.example)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python (uv) — only for components that genuinely need it
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.uv-cache/
+
+# Docker / local stateful data
+.data/
+volumes/
+postgres-data/
+redis-data/
+minio-data/
+caddy-data/
+
+# IDE / editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Misc
+*.tmp
+*.bak
+
+
+.codegraph*
+
+.omo*
