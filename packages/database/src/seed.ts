@@ -38,6 +38,8 @@ async function main(): Promise<void> {
       "payment:write",
       "settlement:read",
       "settlement:write",
+      "finance:read",
+      "finance:write",
     ];
     for (const key of permissions) {
       await prisma.permission.upsert({

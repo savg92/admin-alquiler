@@ -29,3 +29,17 @@ export type {
   ContractTermsInput,
   PaymentAllocation,
 } from "./rental";
+export {
+  decideImport,
+  dedupeKey,
+  parseAmountToMinor,
+  parseBankCsv,
+  suggestMatches,
+} from "./finance-import";
+export type {
+  ImportDecision,
+  MatchCandidate,
+  MatchSuggestion,
+  ParsedBankRow,
+  SupportedBank,
+} from "./finance-import";

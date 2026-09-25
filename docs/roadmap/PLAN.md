@@ -92,8 +92,8 @@ E2E gate is green.
 ### WS-5 — Finance [Stage C]
 
 - [ ] Accounts, categories, financial transactions (exact arithmetic, ISO-4217 per record)
-- [ ] Bank imports (Bancolombia/Davivienda maps; dedupe key; quarantine on conflict)
-- [ ] Reconciliation (manual confirm with suggestions; OCR assist-only, human posts)
+- [x] Bank imports (Bancolombia/Davivienda maps; dedupe key; quarantine on conflict)
+- [x] Reconciliation (manual confirm with suggestions; OCR assist-only, human posts)
 - [ ] Periods + monthly/yearly statements
 - [ ] v1 KPI set: occupancy, delinquency rate, upcoming expirations, maintenance SLA, per-property P&L/EBIT
 - [ ] Owner settlements (commission rules; monthly statements; ownership-% splits; recorded payouts)

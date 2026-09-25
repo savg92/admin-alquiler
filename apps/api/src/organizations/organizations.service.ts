@@ -12,6 +12,8 @@ const BASELINE_PERMISSIONS = [
   "payment:write",
   "settlement:read",
   "settlement:write",
+  "finance:read",
+  "finance:write",
 ];
 
 function slugify(name: string): string {
