@@ -1,0 +1,36 @@
+{
+  "name": "admin-alquiler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Secure, mobile-first, multi-organization property and rental administration platform (Colombia first, es-CO).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter './apps/*' dev",
+    "dev:api": "bun run --filter '@admin-alquiler/api' dev",
+    "dev:web": "bun run --filter '@admin-alquiler/web' dev",
+    "dev:worker": "bun run --filter '@admin-alquiler/worker' dev",
+    "build": "bun run --filter './apps/*' build",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "bun test tests/integration",
+    "test:e2e": "bun test tests/e2e",
+    "test:security": "bun test tests/security",
+    "check": "bun run lint && bun run typecheck && bun test",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.2",
+    "bun-types": "1.4.2",
+    "husky": "9.1.7",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "bun": ">=1.2"
+  }
+}

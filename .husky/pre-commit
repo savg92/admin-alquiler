@@ -1,0 +1,2 @@
+bunx biome check --staged
+bunx tsc --noEmit -p tsconfig.json

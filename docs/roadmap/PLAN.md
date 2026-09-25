@@ -33,9 +33,9 @@ E2E gate is green.
 
 ### WS-1 — Repository and tooling [Stage A]
 
-- [ ] Bun workspace/monorepo with web, api, worker apps
-- [ ] Shared packages (domain, auth, permissions, database, documents, notifications, events, config, shared)
-- [ ] TypeScript + lint/format + commit hooks
+- [x] Bun workspace/monorepo with web, api, worker apps
+- [x] Shared packages (domain, auth, permissions, database, documents, notifications, events, config, shared)
+- [x] TypeScript + lint/format + commit hooks
 - [ ] Docker Compose (PostgreSQL, Redis, MinIO, API, worker, web, Caddy)
 - [ ] Environment validation (fail fast on missing secrets/config)
 - [ ] CI (lint, typecheck, unit, integration)
