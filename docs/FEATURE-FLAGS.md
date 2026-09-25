@@ -40,11 +40,11 @@ A flag can include:
 | `AI_LOCAL_MODELS` | Local server inference |
 | `AI_EXTERNAL_PROVIDER` | External AI provider |
 | `VOTING_ENABLED` | Voting workflows |
-| `PROPERTY_HORIZONTAL_ENABLED` | Property-horizontal features |
+| `PROPERTY_HORIZONTAL_ENABLED` | Phase 1: cuotas, assembly acts, Ley 675 quorums — resolves per property (System → Environment → Organization → Property); explicit disable at property overrides an inherited enable; non-PH properties hide these workflows |
 | `OWNER_APPROVAL` | Owner approval workflows |
 | `OFFLINE_ENABLED` | Offline functionality |
 | `ADVANCED_ACCOUNTING_ENABLED` | Advanced financial features |
-| `WHATSAPP` | Future channel |
+| `WHATSAPP` | Deferred future channel (stays off in Phase 1) |
 | `RAG_ENABLED` | Future knowledge retrieval |
 | `CLI_ENABLED` | Future CLI |
 | `MCP_ENABLED` | Future MCP |

@@ -15,4 +15,7 @@ Timeline visual: [roadmap/roadmap.md](./roadmap/roadmap.md).
 
 Phases 1–2 are current focus. Phases 3–7 must not weaken Phase 1 security/authorization boundaries.
 
+Execution tracking: [roadmap/PLAN.md](./roadmap/PLAN.md) — per-phase/workstream/task checkboxes.
+Live status: `bash scripts/roadmap-status.sh` (computed from the checkboxes; no manual percentages).
+
 > Scope change rule: edit the phase file, not this table, when scope details change. Keep the one-line objective here in sync.

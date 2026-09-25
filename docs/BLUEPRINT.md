@@ -65,9 +65,19 @@ Templates, documents, versions, attachments, approvals, signatures, PDFs and doc
 
 ### Communications
 Formal email, internal communication records, notifications and future channel adapters.
+Phase 1 is email + in-app; WhatsApp is a deferred adapter. Dunning/renewal templates are
+channel-neutral.
 
 ### Governance
 Acts/minutes, decisions, voting, ownership shares, approvals and authorization workflows.
+Phase 1 includes propiedad horizontal, gated per property by `PROPERTY_HORIZONTAL_ENABLED`:
+cuotas de administración (ordinary/extraordinary) as charges, assembly acts with attendance/quorum/proxies, ordinary quorum 50%+1 of coefficients
+present, qualified quorum 70% of total coefficients. Properties without the flag see none of this.
+
+### Self-service (same PWA)
+Tenant slice: contract/charges/receipts view, payment-proof + photo upload, request tracking.
+Owner view-only slice: per-property P&L/EBIT, occupancy, delinquency. Server-side authorization
+and audit apply unchanged.
 
 ## 5. Multi-owner rules
 

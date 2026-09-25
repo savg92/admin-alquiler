@@ -5,7 +5,9 @@ Phase 1 channels:
 - in-app
 - formal email
 
-Future channels are adapters, not domain dependencies.
+WhatsApp is deferred to a later phase. When it lands it is a channel adapter behind the same
+router — no domain-logic change. Write dunning/renewal templates channel-neutral now so they
+can be reused.
 
 ```mermaid
 flowchart TD

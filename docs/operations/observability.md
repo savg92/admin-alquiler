@@ -1,6 +1,11 @@
 # Observability
 
-Use structured logs with timestamp, severity, service, correlation/request ID, organization/actor IDs only where safe, event, duration and stable error code.
+Minimal baseline (Phase 1 now; Prometheus/Grafana/Loki and OpenTelemetry deferred):
+
+- Pino JSON logs with timestamp, severity, service, correlation/request ID (`X-Request-Id`,
+  generated if absent), organization/actor IDs only where safe, event, duration and stable error code.
+- `GET /health` (liveness) and `GET /ready` (DB, Redis/queue depth, storage checks).
+- Queue depth/failure and worker-failure tracking via the worker + `/ready`.
 
 Never log sensitive payloads by default.
 

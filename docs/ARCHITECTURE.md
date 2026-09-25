@@ -119,7 +119,13 @@ Domain event
 
 Initial channel: email and in-app notifications.
 
-Future channels must not change domain logic.
+WhatsApp is deferred: it ships later as a channel adapter behind the same router with no domain
+changes. Keep templates channel-neutral and the `WHATSAPP` flag off until the adapter lands.
+
+Country-pluggable rules (multi-country later, Colombia first): rent-increase caps
+(`CountryRentCapPolicy`: CO/Ley 820 IPC cap now, other countries later) and late-fee defaults
+resolve through the same `system → organization → property → contract` configuration
+inheritance. The domain depends on the policy interface, never on DANE or any provider SDK.
 
 ## 9. Feature flags
 
@@ -140,11 +146,11 @@ Examples:
 - `AI_LOCAL_MODELS`
 - `AI_EXTERNAL_PROVIDER`
 - `VOTING_ENABLED`
-- `PROPERTY_HORIZONTAL_ENABLED`
+- `PROPERTY_HORIZONTAL_ENABLED` — Phase 1 scope (cuotas, assembly acts, Ley 675 quorums), resolved per property
 - `OWNER_APPROVAL`
 - `OFFLINE_ENABLED`
 - `ADVANCED_ACCOUNTING_ENABLED`
-- `WHATSAPP`
+- `WHATSAPP` — deferred future channel, stays off in Phase 1
 - `RAG_ENABLED`
 - `CLI_ENABLED`
 - `MCP_ENABLED`

@@ -12,6 +12,9 @@ Create a stable internal API:
 - `generateStructuredOutput`
 - `generateEmbedding`
 - `analyzeImage`
+- `decide` — typed decision (`choice`/`score`/`noul`) with calibrated confidence; no text output.
+  Confident answers can auto-advance a workflow; answers below threshold escalate to a human or a
+  stronger model. Never a direct writer of business records — §9 applies unchanged.
 
 Business features call the gateway, never model SDKs directly.
 
@@ -63,6 +66,12 @@ Model candidates:
 - LFM2.5-2.6B
 - LFM2.5-VL-3B
 
+Decision-model candidate (self-hosted, default for `decide`):
+
+- Laya (Apache 2.0, ~421M params, CPU/GPU; multilingual checkpoint for Spanish).
+  Treat as a base to specialise: fine-tune on our own labeled data and fit calibration
+  temperatures per question type before trusting confidence scores (see §11).
+
 Do not hard-code the application to one model.
 
 ## 5. External provider
@@ -78,6 +87,10 @@ Implement a provider adapter with:
 - observability
 
 External AI must be disabled for data classes prohibited by organization policy.
+
+Optional hosted decision-model adapter: Jev (hosted API, wire-compatible with the `decide`
+interface, so it swaps with the self-hosted default by configuration only). Same privacy,
+explicit-configuration and policy rules as any external provider; never the only option.
 
 ## 6. Model registry
 
@@ -175,6 +188,10 @@ Extract structured fields from contracts, receipts and supporting documents.
 
 ### Classification
 Classify documents, complaints and requests.
+Route high-volume triage through `decide` where the answer space is bounded (urgency, department,
+category): confident answers advance the workflow, low-confidence answers join a human review queue.
+Same pattern for proof→payment match suggestions and dunning-stage decisions — suggestion only,
+a human confirms the posting.
 
 ### Vision
 Analyze local images/documents using compatible vision models.
@@ -196,7 +213,13 @@ Evaluate:
 - WebGPU availability
 - fallback correctness
 
-Keep representative anonymized test fixtures.
+### Decision-model calibration gate (required before any `decide` result advances a workflow)
+
+- Fine-tune/fit on labeled es-CO data; zero-shot vendor numbers do not transfer.
+- Fit calibration temperatures per question type on held-out data; verify e.g. "0.8 means ~80%".
+- Log confidence against outcomes for at least a week before raising auto-act thresholds.
+- Set escalation thresholds from our own labeled cases, higher for destructive actions.
+- Keep representative anonymized test fixtures.
 
 ## 12. Observability
 

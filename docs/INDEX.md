@@ -62,6 +62,7 @@ Single entry point for all docs. Paths below are relative to `docs/`.
 ### Roadmap
 
 - [ROADMAP.md](./ROADMAP.md) — summary hub (single source for phase scope)
+- [roadmap/PLAN.md](./roadmap/PLAN.md) — trackable build status (checkboxes + `scripts/roadmap-status.sh`)
 - [roadmap/roadmap.md](./roadmap/roadmap.md) — timeline visual
 - [roadmap/PHASE-1.md](./roadmap/PHASE-1.md) — Core Platform workstreams
 - [roadmap/PHASE-2.md](./roadmap/PHASE-2.md) — Private/Local AI plan
