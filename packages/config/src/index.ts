@@ -1,3 +1,6 @@
+export type { ApiEnv, WebEnv, WorkerEnv } from "./env";
+export { validateEnv } from "./env";
+
 export type ServiceName = "api" | "worker" | "web";
 
 export interface ServiceConfig {

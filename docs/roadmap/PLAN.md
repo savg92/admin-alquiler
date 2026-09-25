@@ -37,8 +37,8 @@ E2E gate is green.
 - [x] Shared packages (domain, auth, permissions, database, documents, notifications, events, config, shared)
 - [x] TypeScript + lint/format + commit hooks
 - [x] Docker Compose (PostgreSQL, Redis, MinIO, API, worker, web, Caddy)
-- [ ] Environment validation (fail fast on missing secrets/config)
-- [ ] CI (lint, typecheck, unit, integration)
+- [x] Environment validation (fail fast on missing secrets/config)
+- [x] CI (lint, typecheck, unit, integration)
 
 ### WS-12 — Reliability [Stage A]
 

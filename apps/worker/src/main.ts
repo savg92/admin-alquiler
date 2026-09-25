@@ -1,5 +1,6 @@
-import { loadConfig } from "@admin-alquiler/config";
+import { loadConfig, validateEnv } from "@admin-alquiler/config";
 
+validateEnv("worker");
 const config = loadConfig("worker");
 
 console.log(`worker started (env=${config.nodeEnv})`);
