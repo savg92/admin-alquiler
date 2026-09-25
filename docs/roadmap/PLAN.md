@@ -36,7 +36,7 @@ E2E gate is green.
 - [x] Bun workspace/monorepo with web, api, worker apps
 - [x] Shared packages (domain, auth, permissions, database, documents, notifications, events, config, shared)
 - [x] TypeScript + lint/format + commit hooks
-- [ ] Docker Compose (PostgreSQL, Redis, MinIO, API, worker, web, Caddy)
+- [x] Docker Compose (PostgreSQL, Redis, MinIO, API, worker, web, Caddy)
 - [ ] Environment validation (fail fast on missing secrets/config)
 - [ ] CI (lint, typecheck, unit, integration)
 

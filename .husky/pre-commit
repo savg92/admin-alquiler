@@ -1,2 +1,7 @@
-bunx biome check --staged
+STAGED_TS=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|js|jsx|mts|cts|json|jsonc)$' || true)
+if [ -n "$STAGED_TS" ]; then
+  bunx biome check --staged
+else
+  echo "biome: no JS/TS files staged, skipping"
+fi
 bunx tsc --noEmit -p tsconfig.json
