@@ -59,7 +59,7 @@ E2E gate is green.
 
 ### WS-2 — Identity and organizations [Stage B]
 
-- [ ] Users, organizations, memberships
+- [x] Users, organizations, memberships
 - [/] Roles + permissions + authorization policies (deny by default, server-side)
 - [x] Sessions + password authentication (expiry, rotation)
 - [x] Audit events for identity/role changes
@@ -149,16 +149,16 @@ E2E gate is green.
 - [ ] Unit suite (domain rules, policies, money math)
 - [ ] Integration suite (DB, repos, API modules, storage, jobs)
 - [ ] E2E suite — each step green in CI:
-- [ ] — sign in
-- [ ] — create organization
-- [ ] — guided property/units setup (incl. bulk units)
-- [ ] — add owner
-- [ ] — add tenant
-- [ ] — create contract
-- [ ] — generate monthly charges
-- [ ] — record payment
-- [ ] — generate receipt
-- [ ] — generate owner settlement
+- [x] — sign in
+- [x] — create organization
+- [x] — guided property/units setup (incl. bulk units)
+- [x] — add owner
+- [x] — add tenant
+- [x] — create contract
+- [x] — generate monthly charges
+- [x] — record payment
+- [x] — generate receipt
+- [x] — generate owner settlement
 - [ ] — approve document
 - [ ] — generate PDF
 - [ ] — create maintenance request

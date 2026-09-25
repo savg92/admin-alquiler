@@ -75,3 +75,4 @@ jobs:
       - run: bun run --filter '@admin-alquiler/database' db:migrate
       - run: bun run --filter '@admin-alquiler/database' db:seed
       - run: bun run test:integration
+      - run: bun run test:e2e

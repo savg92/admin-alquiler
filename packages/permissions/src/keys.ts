@@ -13,6 +13,8 @@ export const PERMISSION_KEYS = [
   "role:write",
   "owner:read",
   "report:read",
+  "settlement:read",
+  "settlement:write",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];

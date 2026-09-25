@@ -26,6 +26,6 @@ function resolveJwtSecret(): string {
     { provide: AUTH_STORE, useClass: PrismaAuthStore },
     { provide: AUTH_CONFIG, useFactory: () => ({ jwtSecret: resolveJwtSecret() }) },
   ],
-  exports: [AuthService, JwtAuthGuard, PermissionsGuard],
+  exports: [AuthService, JwtAuthGuard, PermissionsGuard, AUTH_STORE, AUTH_CONFIG],
 })
 export class AuthModule {}
