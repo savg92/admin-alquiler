@@ -42,13 +42,13 @@ E2E gate is green.
 
 ### WS-12 — Reliability [Stage A]
 
-- [ ] Health endpoints (`GET /health` liveness, `GET /ready` with DB/queue/storage checks)
-- [ ] Structured JSON logs (Pino: timestamp, severity, service, request ID, safe IDs, event, duration, error code)
-- [ ] Request IDs (`X-Request-Id` generate/propagate across API → worker)
-- [ ] Queue monitoring (depth, failures, dead-letter visibility)
-- [ ] Automated encrypted backups
+- [x] Health endpoints (`GET /health` liveness, `GET /ready` with DB/queue/storage checks)
+- [x] Structured JSON logs (Pino: timestamp, severity, service, request ID, safe IDs, event, duration, error code)
+- [x] Request IDs (`X-Request-Id` generate/propagate across API → worker)
+- [x] Queue monitoring (depth, failures, dead-letter visibility)
+- [x] Automated encrypted backups
 - [ ] Restore drill in a test environment (record date + result)
-- [ ] Secret management (env-validated, never logged, rotation documented)
+- [x] Secret management (env-validated, never logged, rotation documented)
 
 ### Engineering contracts [Stage A]
 
