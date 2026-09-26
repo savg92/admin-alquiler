@@ -18,31 +18,15 @@ import {
 } from "@admin-alquiler/ai";
 import { buildAuditEvent } from "@admin-alquiler/domain";
 import { readAiConfig, type AiConfig } from "@admin-alquiler/config";
+import { buildDecisionAdapter } from "./decision-adapters";
 import { AiObservabilityService } from "./observability";
+import { ProviderAdapter } from "./provider-adapter";
 import { AI_STORE } from "./tokens";
 import type { AiStore } from "./store";
-
-interface ChatContentPart {
-  type: string;
-  text?: string;
-  image_url?: { url: string };
-}
-
-type ChatContent = string | ChatContentPart[];
-
-interface ChatMessage {
-  role: string;
-  content: ChatContent;
-}
 
 interface TokenUsage {
   promptTokens: number | null;
   completionTokens: number | null;
-}
-
-interface ChatCompletion {
-  text: string;
-  usage: TokenUsage;
 }
 
 const EMPTY_USAGE: TokenUsage = { promptTokens: null, completionTokens: null };
@@ -51,16 +35,6 @@ const PRIVACY_LEVELS: readonly string[] = ["local-only", "local-preferred", "pro
 
 function isPrivacyLevel(value: string): value is PrivacyLevel {
   return PRIVACY_LEVELS.includes(value);
-}
-
-function tokenUsageOf(body: unknown): TokenUsage {
-  const usage = asRecord(asRecord(body)?.["usage"]);
-  const prompt = usage?.["prompt_tokens"];
-  const completion = usage?.["completion_tokens"];
-  return {
-    promptTokens: typeof prompt === "number" ? prompt : null,
-    completionTokens: typeof completion === "number" ? completion : null,
-  };
 }
 
 function providerOf(config: AiConfig, runtime: RuntimeKind | undefined): string {
@@ -101,41 +75,6 @@ interface ResolvedCall {
   runtime: RuntimeKind;
   privacyLevel: string;
   model: string;
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function fetchJson(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-  maxRetries: number,
-): Promise<{ status: number; body: unknown }> {
-  let attempt = 0;
-  for (;;) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      clearTimeout(timer);
-      const body = (await response.json().catch(() => null)) as unknown;
-      if ((response.status >= 500 || response.status === 429) && attempt < maxRetries) {
-        attempt += 1;
-        await sleep(100 * 2 ** (attempt - 1));
-        continue;
-      }
-      return { status: response.status, body };
-    } catch (error) {
-      clearTimeout(timer);
-      if (attempt >= maxRetries) {
-        throw error;
-      }
-      attempt += 1;
-      await sleep(100 * 2 ** (attempt - 1));
-    }
-  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -283,39 +222,11 @@ export class AiService {
     );
   }
 
-  private async chatCompletions(
-    baseUrl: string,
-    apiKey: string | null,
-    model: string,
-    messages: ChatMessage[],
-    maxTokens: number,
-    config: AiConfig,
-  ): Promise<ChatCompletion> {
-    const { status, body } = await fetchJson(
-      `${baseUrl.replace(/\/$/, "")}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiKey === null ? {} : { Authorization: `Bearer ${apiKey}` }),
-        },
-        body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
-      },
-      config.timeoutMs,
-      config.maxRetries,
-    );
-    if (status !== 200) {
-      throw new BadGatewayException(`Inference endpoint answered ${status}.`);
-    }
-    const choice = asRecord(asRecord(body)?.["choices"] as unknown);
-    const first = Array.isArray(asRecord(body)?.["choices"])
-      ? ((asRecord(body)?.["choices"] as unknown[])[0] as unknown)
-      : choice;
-    const content = asRecord(asRecord(first)?.["message"])?.["content"];
-    if (typeof content !== "string" || content.length === 0) {
-      throw new BadGatewayException("Inference endpoint returned no text.");
-    }
-    return { text: content, usage: tokenUsageOf(body) };
+  private adapterFor(runtime: RuntimeKind): ProviderAdapter {
+    const config = this.config();
+    return runtime === "provider"
+      ? new ProviderAdapter(config.providerBaseUrl, config.providerApiKey, config)
+      : new ProviderAdapter(config.localBaseUrl, null, config);
   }
 
   async generateText(
@@ -374,20 +285,16 @@ export class AiService {
         payload: { prompt: input.prompt, maxTokens: input.maxTokens ?? 512 },
       };
     }
-    const config = this.config();
     let prompt = input.prompt;
     if (resolved.runtime === "provider") {
       prompt = redactPersonal(input.prompt).redacted;
     }
     try {
-      const completion = await this.chatCompletions(
-        resolved.runtime === "provider" ? config.providerBaseUrl : config.localBaseUrl,
-        resolved.runtime === "provider" ? config.providerApiKey : null,
-        resolved.model,
-        [{ role: "user", content: prompt }],
-        input.maxTokens ?? 512,
-        config,
-      );
+      const completion = await this.adapterFor(resolved.runtime).chat({
+        model: resolved.model,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens: input.maxTokens ?? 512,
+      });
       await this.auditCall(
         orgId,
         actorId,
@@ -554,35 +461,12 @@ export class AiService {
       );
       return { available: false, reason: "No server-side embedding runtime is available." };
     }
-    const config = this.config();
     let text = input.text;
     if (resolved.runtime === "provider") {
       text = redactPersonal(text).redacted;
     }
     try {
-      const { status, body } = await fetchJson(
-        `${(resolved.runtime === "provider" ? config.providerBaseUrl : config.localBaseUrl).replace(/\/$/, "")}/v1/embeddings`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(resolved.runtime === "provider" && config.providerApiKey !== null
-              ? { Authorization: `Bearer ${config.providerApiKey}` }
-              : {}),
-          },
-          body: JSON.stringify({ model: resolved.model, input: text }),
-        },
-        config.timeoutMs,
-        config.maxRetries,
-      );
-      if (status !== 200) {
-        throw new BadGatewayException(`Embedding endpoint answered ${status}.`);
-      }
-      const first = (asRecord(body)?.["data"] as unknown[])?.[0];
-      const embedding = asRecord(first)?.["embedding"];
-      if (!Array.isArray(embedding) || !embedding.every((entry) => typeof entry === "number")) {
-        throw new BadGatewayException("Embedding endpoint returned no vector.");
-      }
+      const embedding = await this.adapterFor(resolved.runtime).embed(resolved.model, text);
       await this.auditCall(
         orgId,
         actorId,
@@ -687,76 +571,24 @@ export class AiService {
         false,
       );
     }
-    const useJev = config.decisionProvider === "jev";
-    const endpoint = config.decisionBaseUrl.replace(/\/$/, "");
-    const isJev = useJev;
+    const adapter = buildDecisionAdapter(config);
     try {
-      const { status, body } = await fetchJson(
-        isJev ? `${endpoint}/v1/decide` : `${endpoint}/decide`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(isJev && config.decisionApiKey !== null
-              ? { Authorization: `Bearer ${config.decisionApiKey}` }
-              : {}),
-          },
-          body: JSON.stringify({
-            model: isJev ? "jev" : config.decisionModel,
-            question:
-              resolved.runtime === "provider"
-                ? redactPersonal(input.question).redacted
-                : input.question,
-            questionType: input.questionType,
-            ...(input.options === undefined ? {} : { options: input.options }),
-          }),
-        },
-        config.timeoutMs,
-        config.maxRetries,
-      );
-      if (status !== 200) {
-        throw new BadGatewayException(`Decision endpoint answered ${status}.`);
-      }
-      const record = asRecord(body);
-      if (!record) {
-        throw new BadGatewayException("Decision endpoint returned no object.");
-      }
-      const confidence = record["confidence"];
-      if (typeof confidence !== "number" || confidence < 0 || confidence > 1) {
-        throw new BadGatewayException("Decision confidence must be within [0, 1].");
-      }
-      const choice = record["choice"];
-      const score = record["score"];
-      const output =
-        typeof choice === "string"
-          ? { kind: "choice" as const, choice, confidence }
-          : typeof score === "number"
-            ? { kind: "score" as const, score, confidence }
-            : { kind: "none" as const, confidence };
-      if (typeof choice === "string" && typeof score === "number") {
-        throw new BadGatewayException("Decision must return either choice or score.");
-      }
-      if (
-        typeof choice === "string" &&
-        input.options !== undefined &&
-        !input.options.includes(choice)
-      ) {
-        throw new BadGatewayException("Decision choice is outside the allowed options.");
-      }
-      const result = applyDecisionThreshold(output, input.questionType, input.temperature ?? 1);
-      return finish(
-        { ...result, model: isJev ? "jev" : config.decisionModel, runtime: resolved.runtime },
-        true,
-      );
-    } catch {
+      const answer = await adapter.decide({
+        question: input.question,
+        questionType: input.questionType,
+        ...(input.options === undefined ? {} : { options: input.options }),
+        dataClasses: input.dataClasses,
+        redact: (text) => redactPersonal(text).redacted,
+      });
+      const result = applyDecisionThreshold(answer, input.questionType, input.temperature ?? 1);
+      return finish({ ...result, model: adapter.model, runtime: resolved.runtime }, true);
+    } catch (error) {
+      this.metrics.recordUpstreamFailure(error);
       const escalated = applyDecisionThreshold(
         { kind: "none" as const, confidence: 0 },
         input.questionType,
       );
-      return finish(
-        { ...escalated, model: isJev ? "jev" : config.decisionModel, runtime: resolved.runtime },
-        false,
-      );
+      return finish({ ...escalated, model: adapter.model, runtime: resolved.runtime }, false);
     }
   }
 
@@ -802,17 +634,13 @@ export class AiService {
       await this.auditCall(orgId, actorId, input.feature, null, Date.now() - started, false, true);
       return { available: false, reason: "No permitted vision runtime is available." };
     }
-    const config = this.config();
-    const baseUrl = resolved.runtime === "provider" ? config.providerBaseUrl : config.localBaseUrl;
-    const apiKey = resolved.runtime === "provider" ? config.providerApiKey : null;
     const prompt =
       resolved.runtime === "provider" ? redactPersonal(input.prompt).redacted : input.prompt;
     try {
-      const completion = await this.chatCompletions(
-        baseUrl,
-        apiKey,
-        resolved.model,
-        [
+      const completion = await this.adapterFor(resolved.runtime).chat({
+        model: resolved.model,
+        maxTokens: 512,
+        messages: [
           {
             role: "user",
             content: [
@@ -824,9 +652,7 @@ export class AiService {
             ],
           },
         ],
-        512,
-        config,
-      );
+      });
       let parsed: unknown;
       try {
         parsed = JSON.parse(completion.text);

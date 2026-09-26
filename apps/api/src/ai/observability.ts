@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { PrivacyLevel } from "@admin-alquiler/ai";
+import { UpstreamError } from "./transport";
 
 /**
  * Safe per-call metadata only (PHASE-2 §12).
@@ -38,6 +39,7 @@ export interface AiMetricsSnapshot {
   escalations: number;
   promptTokens: number;
   completionTokens: number;
+  upstreamFailures: Record<string, number>;
   latencyMs: AiLatencyStats;
   byFeature: Record<string, { calls: number; failures: number; fallbacks: number }>;
   byRuntime: Record<string, number>;
@@ -67,6 +69,7 @@ function bump(target: Record<string, number>, key: string): void {
 export class AiObservabilityService {
   private readonly window: AiCallRecord[] = [];
   private escalations = 0;
+  private readonly upstreamFailures: Record<string, number> = {};
 
   record(entry: AiCallRecord): void {
     this.window.push(entry);
@@ -78,6 +81,12 @@ export class AiObservabilityService {
   /** A `decide` answer below threshold was routed to a human instead of auto-advancing. */
   recordEscalation(): void {
     this.escalations += 1;
+  }
+
+  /** Classifies a transport failure so quota and outage pressure stays visible. */
+  recordUpstreamFailure(error: unknown): void {
+    const kind = error instanceof UpstreamError ? error.failure : "unknown";
+    bump(this.upstreamFailures, kind);
   }
 
   snapshot(): AiMetricsSnapshot {
@@ -118,6 +127,7 @@ export class AiObservabilityService {
       escalations: this.escalations,
       promptTokens,
       completionTokens,
+      upstreamFailures: { ...this.upstreamFailures },
       latencyMs: {
         count: latencies.length,
         min: latencies.length === 0 ? 0 : (latencies[0] as number),
@@ -138,5 +148,8 @@ export class AiObservabilityService {
   reset(): void {
     this.window.length = 0;
     this.escalations = 0;
+    for (const key of Object.keys(this.upstreamFailures)) {
+      delete this.upstreamFailures[key];
+    }
   }
 }

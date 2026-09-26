@@ -182,10 +182,10 @@ E2E gate is green.
 ### Local + provider (§3–§5)
 
 - [ ] WebGPU (capability/memory checks, download cache + recovery, mobile/desktop tests)
-- [ ] Local inference adapter (LFM2.5 candidates; no hard-coded model)
-- [ ] Self-hosted decision default: Laya (multilingual checkpoint; fine-tuned, see evaluation)
-- [ ] Optional hosted decision adapter: Jev (same `decide` interface; explicit config; never the only option)
-- [ ] Provider adapter (explicit config, redaction/minimization, timeouts, retries, quotas, observability)
+- [x] Local inference adapter (LFM2.5 candidates; no hard-coded model)
+- [x] Self-hosted decision default: Laya (multilingual checkpoint; fine-tuned, see evaluation)
+- [x] Optional hosted decision adapter: Jev (same `decide` interface; explicit config; never the only option)
+- [x] Provider adapter (explicit config, redaction/minimization, timeouts, retries, quotas, observability)
 
 ### Registry, flags, privacy, safety (§6–§9)
 
