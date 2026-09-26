@@ -113,16 +113,23 @@ export {
 } from "./documents";
 export type { DocumentStatus } from "./documents";
 export {
+  canTransitionCase,
   canTransitionMaintenance,
+  parseCaseStatus,
   parseMaintenancePriority,
   parseMaintenanceStatus,
+  validateCaseText,
+  validateCountryCode,
+  validateHouseRuleBody,
   validateInsurance,
   validateMaintenanceText,
   validatePurchase,
   validateSupplierCategory,
   validateSupplierName,
+  validateTaxLabel,
 } from "./operations";
 export type {
+  CaseStatus,
   InsuranceInput,
   MaintenancePriority,
   MaintenanceStatus,

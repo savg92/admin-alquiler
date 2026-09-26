@@ -101,3 +101,54 @@ export function validateInsurance(input: InsuranceInput): void {
     throw new Error("Insurance validUntil must be on or after validFrom.");
   }
 }
+
+export type CaseStatus = "open" | "in_progress" | "resolved" | "closed";
+
+const CASE_TRANSITIONS: Record<CaseStatus, CaseStatus[]> = {
+  open: ["in_progress", "closed"],
+  in_progress: ["resolved", "closed"],
+  resolved: ["closed", "open"],
+  closed: ["open"],
+};
+
+export function parseCaseStatus(value: string): CaseStatus {
+  const valid: CaseStatus[] = ["open", "in_progress", "resolved", "closed"];
+  if (!valid.includes(value as CaseStatus)) {
+    throw new Error(`Invalid case status "${value}".`);
+  }
+  return value as CaseStatus;
+}
+
+export function canTransitionCase(from: CaseStatus, to: CaseStatus): boolean {
+  return CASE_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export function validateCaseText(subject: string, body: string): void {
+  if (subject.trim().length === 0 || subject.length > 200) {
+    throw new Error("Case subject must be 1-200 characters.");
+  }
+  if (body.trim().length === 0 || body.length > 20000) {
+    throw new Error("Case body must be 1-20000 characters.");
+  }
+}
+
+export function validateTaxLabel(label: string): string {
+  if (label.trim().length === 0 || label.length > 200) {
+    throw new Error("Tax label must be 1-200 characters.");
+  }
+  return label.trim();
+}
+
+export function validateCountryCode(country: string): string {
+  if (!/^[A-Za-z]{2}$/.test(country)) {
+    throw new Error("country must be an ISO 3166-1 alpha-2 code.");
+  }
+  return country.toUpperCase();
+}
+
+export function validateHouseRuleBody(body: string): string {
+  if (body.trim().length === 0 || body.length > 20000) {
+    throw new Error("House rule body must be 1-20000 characters.");
+  }
+  return body;
+}

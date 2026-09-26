@@ -14,6 +14,8 @@ import { AUTH_CONFIG, AUTH_STORE } from "../src/auth/tokens";
 import { IdempotencyMiddleware } from "../src/idempotency/middleware";
 import { DirectoryController } from "../src/operations/directory.controller";
 import { DirectoryService } from "../src/operations/directory.service";
+import { CasesController } from "../src/operations/cases.controller";
+import { CasesService } from "../src/operations/cases.service";
 import { MaintenanceController } from "../src/operations/maintenance.controller";
 import { MaintenanceService } from "../src/operations/maintenance.service";
 import type { OperationsStore } from "../src/operations/store";
@@ -306,6 +308,140 @@ class FakeOperationsStore implements OperationsStore {
       .map(({ orgId: _o, ...rest }) => rest);
   }
 
+  complaints: {
+    id: string;
+    orgId: string;
+    propertyId: string;
+    reporter: string;
+    subject: string;
+    body: string;
+    status: string;
+  }[] = [];
+
+  async createComplaint(
+    orgId: string,
+    data: { propertyId: string; reporter: string; subject: string; body: string },
+  ) {
+    const row = { id: `com-${this.complaints.length + 1}`, orgId, status: "open", ...data };
+    this.complaints.push(row);
+    const { orgId: _o, ...rest } = row;
+    return rest;
+  }
+
+  async listComplaints(orgId: string, propertyId?: string) {
+    return this.complaints
+      .filter(
+        (row) => row.orgId === orgId && (propertyId === undefined || row.propertyId === propertyId),
+      )
+      .map(({ orgId: _o, ...rest }) => rest);
+  }
+
+  async findComplaint(id: string, orgId: string) {
+    const found = this.complaints.find((row) => row.id === id && row.orgId === orgId);
+    if (!found) {
+      return null;
+    }
+    const { orgId: _o, ...rest } = found;
+    return rest;
+  }
+
+  async setComplaintStatus(id: string, status: string) {
+    const found = this.complaints.find((row) => row.id === id);
+    if (!found) {
+      throw new Error("Complaint not found.");
+    }
+    found.status = status;
+    const { orgId: _o, ...rest } = found;
+    return rest;
+  }
+
+  claims: {
+    id: string;
+    orgId: string;
+    propertyId: string;
+    subject: string;
+    body: string;
+    status: string;
+  }[] = [];
+
+  async createClaim(orgId: string, data: { propertyId: string; subject: string; body: string }) {
+    const row = { id: `clm-${this.claims.length + 1}`, orgId, status: "open", ...data };
+    this.claims.push(row);
+    const { orgId: _o, ...rest } = row;
+    return { ...rest, reporter: "" };
+  }
+
+  async listClaims(orgId: string, propertyId?: string) {
+    return this.claims
+      .filter(
+        (row) => row.orgId === orgId && (propertyId === undefined || row.propertyId === propertyId),
+      )
+      .map(({ orgId: _o, ...rest }) => ({ ...rest, reporter: "" }));
+  }
+
+  async findClaim(id: string, orgId: string) {
+    const found = this.claims.find((row) => row.id === id && row.orgId === orgId);
+    if (!found) {
+      return null;
+    }
+    const { orgId: _o, ...rest } = found;
+    return { ...rest, reporter: "" };
+  }
+
+  async setClaimStatus(id: string, status: string) {
+    const found = this.claims.find((row) => row.id === id);
+    if (!found) {
+      throw new Error("Claim not found.");
+    }
+    found.status = status;
+    const { orgId: _o, ...rest } = found;
+    return { ...rest, reporter: "" };
+  }
+
+  taxes: {
+    id: string;
+    orgId: string;
+    country: string;
+    label: string;
+    dueDate: Date;
+    receiptRef: string | null;
+  }[] = [];
+
+  async createTaxRecord(
+    orgId: string,
+    data: { country: string; label: string; dueDate: Date; receiptRef: string | null },
+  ) {
+    const row = { id: `tax-${this.taxes.length + 1}`, orgId, ...data };
+    this.taxes.push(row);
+    const { orgId: _o, ...rest } = row;
+    return rest;
+  }
+
+  async listTaxRecords(orgId: string, before?: Date) {
+    return this.taxes
+      .filter((row) => row.orgId === orgId && (before === undefined || row.dueDate <= before))
+      .map(({ orgId: _o, ...rest }) => rest);
+  }
+
+  houseRules: { id: string; propertyId: string; version: number; body: string }[] = [];
+
+  async createHouseRule(propertyId: string, body: string) {
+    const version =
+      Math.max(
+        0,
+        ...this.houseRules.filter((row) => row.propertyId === propertyId).map((row) => row.version),
+      ) + 1;
+    const row = { id: `hr-${this.houseRules.length + 1}`, propertyId, version, body };
+    this.houseRules.push(row);
+    return row;
+  }
+
+  async listHouseRules(propertyId: string) {
+    return this.houseRules
+      .filter((row) => row.propertyId === propertyId)
+      .sort((a, b) => a.version - b.version);
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -315,9 +451,10 @@ const authStore = new FakeAuthStore();
 const operationsStore = new FakeOperationsStore();
 
 @Module({
-  controllers: [AuthController, DirectoryController, MaintenanceController],
+  controllers: [AuthController, CasesController, DirectoryController, MaintenanceController],
   providers: [
     AuthService,
+    CasesService,
     DirectoryService,
     MaintenanceService,
     JwtAuthGuard,
@@ -592,5 +729,95 @@ describe("suppliers, purchases and insurance", () => {
     ).json()) as { supplierId: string };
     expect(assigned.supplierId).toBe(supplierId);
     expect(operationsStore.audits).toContain("maintenance.work_order_assigned");
+  });
+});
+
+describe("complaints, claims, tax and house rules", () => {
+  test("complaints and claims follow configurable workflows", async () => {
+    const complaint = (await (
+      await fetch(`${baseUrl}/api/v1/complaints`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          reporter: "Tenant 101",
+          subject: "Ruido nocturno",
+          body: "Música alta después de las 10pm.",
+        }),
+      })
+    ).json()) as { id: string; status: string };
+    expect(complaint.status).toBe("open");
+    const badJump = await fetch(`${baseUrl}/api/v1/complaints/${complaint.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "resolved" }),
+    });
+    expect(badJump.status).toBe(400);
+    for (const to of ["in_progress", "resolved", "closed"]) {
+      const step = await fetch(`${baseUrl}/api/v1/complaints/${complaint.id}/transitions`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ to }),
+      });
+      expect(step.status).toBe(201);
+    }
+    const claim = (await (
+      await fetch(`${baseUrl}/api/v1/claims`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          subject: "Reclamo administración",
+          body: "Cobro duplicado de cuota.",
+        }),
+      })
+    ).json()) as { id: string; status: string };
+    expect(claim.status).toBe("open");
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/claims?propertyId=prop-1`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(listed.map((row) => row.id)).toContain(claim.id);
+    expect(operationsStore.audits).toContain("complaint.created");
+    expect(operationsStore.audits).toContain("claim.created");
+  });
+
+  test("tax records are record-only with deadline reminders", async () => {
+    const record = (await (
+      await fetch(`${baseUrl}/api/v1/tax-records`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ country: "co", label: "Predial 2026", dueDate: "2026-06-30" }),
+      })
+    ).json()) as { id: string; country: string };
+    expect(record.country).toBe("CO");
+    const deadlines = (await (
+      await fetch(`${baseUrl}/api/v1/tax-deadlines?withinDays=365`, { headers: headers() })
+    ).json()) as { id: string; daysRemaining: number }[];
+    expect(deadlines.map((row) => row.id)).toContain(record.id);
+    expect(operationsStore.audits).toContain("tax.recorded");
+  });
+
+  test("house rules are versioned per property", async () => {
+    const first = (await (
+      await fetch(`${baseUrl}/api/v1/properties/prop-1/house-rules`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ body: "Silencio después de las 10pm." }),
+      })
+    ).json()) as { version: number };
+    expect(first.version).toBe(1);
+    const second = (await (
+      await fetch(`${baseUrl}/api/v1/properties/prop-1/house-rules`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ body: "Silencio después de las 10pm. Mascotas con correa." }),
+      })
+    ).json()) as { version: number };
+    expect(second.version).toBe(2);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/properties/prop-1/house-rules`, { headers: headers() })
+    ).json()) as { version: number }[];
+    expect(listed.map((row) => row.version)).toEqual([1, 2]);
+    expect(operationsStore.audits).toContain("house_rule.published");
   });
 });

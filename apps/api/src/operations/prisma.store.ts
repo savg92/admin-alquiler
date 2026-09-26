@@ -1,11 +1,14 @@
 import { prisma } from "@admin-alquiler/database";
 import type {
   AuditInput,
+  CaseRow,
+  HouseRuleRow,
   InsuranceRow,
   MaintenanceRequestRow,
   OperationsStore,
   PurchaseRow,
   SupplierRow,
+  TaxRecordRow,
   WorkOrderRow,
 } from "./store";
 
@@ -354,6 +357,196 @@ export class PrismaOperationsStore implements OperationsStore {
       policyRef: row.policyRef,
       validFrom: row.validFrom,
       validUntil: row.validUntil,
+    }));
+  }
+
+  async createComplaint(
+    orgId: string,
+    data: { propertyId: string; reporter: string; subject: string; body: string },
+  ): Promise<CaseRow> {
+    const created = await prisma.complaint.create({
+      data: {
+        orgId,
+        propertyId: data.propertyId,
+        reporter: data.reporter,
+        subject: data.subject,
+        body: data.body,
+      },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      reporter: created.reporter,
+      subject: created.subject,
+      body: created.body,
+      status: created.status,
+    };
+  }
+
+  async listComplaints(orgId: string, propertyId?: string): Promise<CaseRow[]> {
+    const rows = await prisma.complaint.findMany({
+      where: { orgId, ...(propertyId === undefined ? {} : { propertyId }) },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      reporter: row.reporter,
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+    }));
+  }
+
+  async setComplaintStatus(id: string, status: string): Promise<CaseRow> {
+    const updated = await prisma.complaint.update({ where: { id }, data: { status } });
+    return {
+      id: updated.id,
+      propertyId: updated.propertyId,
+      reporter: updated.reporter,
+      subject: updated.subject,
+      body: updated.body,
+      status: updated.status,
+    };
+  }
+
+  async findComplaint(id: string, orgId: string): Promise<CaseRow | null> {
+    const row = await prisma.complaint.findFirst({ where: { id, orgId } });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      propertyId: row.propertyId,
+      reporter: row.reporter,
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+    };
+  }
+
+  async createClaim(
+    orgId: string,
+    data: { propertyId: string; subject: string; body: string },
+  ): Promise<CaseRow> {
+    const created = await prisma.claim.create({
+      data: { orgId, propertyId: data.propertyId, subject: data.subject, body: data.body },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      reporter: "",
+      subject: created.subject,
+      body: created.body,
+      status: created.status,
+    };
+  }
+
+  async listClaims(orgId: string, propertyId?: string): Promise<CaseRow[]> {
+    const rows = await prisma.claim.findMany({
+      where: { orgId, ...(propertyId === undefined ? {} : { propertyId }) },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      reporter: "",
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+    }));
+  }
+
+  async setClaimStatus(id: string, status: string): Promise<CaseRow> {
+    const updated = await prisma.claim.update({ where: { id }, data: { status } });
+    return {
+      id: updated.id,
+      propertyId: updated.propertyId,
+      reporter: "",
+      subject: updated.subject,
+      body: updated.body,
+      status: updated.status,
+    };
+  }
+
+  async findClaim(id: string, orgId: string): Promise<CaseRow | null> {
+    const row = await prisma.claim.findFirst({ where: { id, orgId } });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      propertyId: row.propertyId,
+      reporter: "",
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+    };
+  }
+
+  async createTaxRecord(
+    orgId: string,
+    data: { country: string; label: string; dueDate: Date; receiptRef: string | null },
+  ): Promise<TaxRecordRow> {
+    const created = await prisma.taxRecord.create({
+      data: {
+        orgId,
+        country: data.country,
+        label: data.label,
+        dueDate: data.dueDate,
+        receiptRef: data.receiptRef,
+      },
+    });
+    return {
+      id: created.id,
+      country: created.country,
+      label: created.label,
+      dueDate: created.dueDate,
+      receiptRef: created.receiptRef,
+    };
+  }
+
+  async listTaxRecords(orgId: string, before?: Date): Promise<TaxRecordRow[]> {
+    const rows = await prisma.taxRecord.findMany({
+      where: { orgId, ...(before === undefined ? {} : { dueDate: { lte: before } }) },
+      orderBy: { dueDate: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      country: row.country,
+      label: row.label,
+      dueDate: row.dueDate,
+      receiptRef: row.receiptRef,
+    }));
+  }
+
+  async createHouseRule(propertyId: string, body: string): Promise<HouseRuleRow> {
+    const last = await prisma.houseRule.findFirst({
+      where: { propertyId },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    const created = await prisma.houseRule.create({
+      data: { propertyId, version: (last?.version ?? 0) + 1, body },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      version: created.version,
+      body: created.body,
+    };
+  }
+
+  async listHouseRules(propertyId: string): Promise<HouseRuleRow[]> {
+    const rows = await prisma.houseRule.findMany({
+      where: { propertyId },
+      orderBy: { version: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      version: row.version,
+      body: row.body,
     }));
   }
 

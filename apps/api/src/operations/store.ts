@@ -49,6 +49,30 @@ export interface InsuranceRow {
   validUntil: Date;
 }
 
+export interface CaseRow {
+  id: string;
+  propertyId: string;
+  reporter: string;
+  subject: string;
+  body: string;
+  status: string;
+}
+
+export interface TaxRecordRow {
+  id: string;
+  country: string;
+  label: string;
+  dueDate: Date;
+  receiptRef: string | null;
+}
+
+export interface HouseRuleRow {
+  id: string;
+  propertyId: string;
+  version: number;
+  body: string;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -124,5 +148,26 @@ export interface OperationsStore {
     },
   ): Promise<InsuranceRow>;
   listInsurance(orgId: string, propertyId?: string): Promise<InsuranceRow[]>;
+  createComplaint(
+    orgId: string,
+    data: { propertyId: string; reporter: string; subject: string; body: string },
+  ): Promise<CaseRow>;
+  listComplaints(orgId: string, propertyId?: string): Promise<CaseRow[]>;
+  findComplaint(id: string, orgId: string): Promise<CaseRow | null>;
+  setComplaintStatus(id: string, status: string): Promise<CaseRow>;
+  createClaim(
+    orgId: string,
+    data: { propertyId: string; subject: string; body: string },
+  ): Promise<CaseRow>;
+  listClaims(orgId: string, propertyId?: string): Promise<CaseRow[]>;
+  findClaim(id: string, orgId: string): Promise<CaseRow | null>;
+  setClaimStatus(id: string, status: string): Promise<CaseRow>;
+  createTaxRecord(
+    orgId: string,
+    data: { country: string; label: string; dueDate: Date; receiptRef: string | null },
+  ): Promise<TaxRecordRow>;
+  listTaxRecords(orgId: string, before?: Date): Promise<TaxRecordRow[]>;
+  createHouseRule(propertyId: string, body: string): Promise<HouseRuleRow>;
+  listHouseRules(propertyId: string): Promise<HouseRuleRow[]>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }
