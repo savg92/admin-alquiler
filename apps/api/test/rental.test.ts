@@ -941,4 +941,48 @@ describe("rental core", () => {
     expect(rentalStore.audits).toContain("deposit.deducted");
     expect(rentalStore.audits).toContain("deposit.returned");
   });
+
+  test("aging report buckets balances by days overdue", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-AGING",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/charges:generate`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ period: "2026-02" }),
+    });
+    const agingAt = async (asOf: string) =>
+      (await (
+        await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/aging?asOf=${asOf}`, {
+          headers: headers(),
+        })
+      ).json()) as {
+        buckets: {
+          currentMinor: number;
+          d1_30Minor: number;
+          d31_60Minor: number;
+          d61_90Minor: number;
+          d90PlusMinor: number;
+          totalMinor: number;
+        };
+      };
+    const onDue = await agingAt("2026-02-05");
+    expect(onDue.buckets.currentMinor).toBe(180000000);
+    expect(onDue.buckets.totalMinor).toBe(180000000);
+    const monthLate = await agingAt("2026-03-10");
+    expect(monthLate.buckets.d31_60Minor).toBe(180000000);
+    const old = await agingAt("2026-06-01");
+    expect(old.buckets.d90PlusMinor).toBe(180000000);
+  });
 });

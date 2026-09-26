@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  agingReport,
   allocatePayment,
   applyIndexIncrease,
   buildAuditEvent,
@@ -695,5 +696,13 @@ export class RentalService {
       }),
     );
     return { ...updated, remainingMinor: depositRemaining(updated) };
+  }
+
+  async getAging(contractId: string, orgId: string, asOf?: string) {
+    await this.getContract(contractId, orgId);
+    const balances = await this.store.pendingChargeBalances(contractId);
+    const now = asOf ? parseDate(asOf, "asOf").getTime() : Date.now();
+    const buckets = agingReport(balances, now);
+    return { contractId, balances, buckets };
   }
 }

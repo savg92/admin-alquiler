@@ -345,3 +345,49 @@ export function validateDepositMovement(ledger: DepositLedger, amountMinor: numb
     throw new Error("Amount exceeds the remaining deposit balance.");
   }
 }
+
+export interface AgingItem {
+  id: string;
+  balanceMinor: number;
+  dueDate: string;
+}
+
+export interface AgingBuckets {
+  currentMinor: number;
+  d1_30Minor: number;
+  d31_60Minor: number;
+  d61_90Minor: number;
+  d90PlusMinor: number;
+  totalMinor: number;
+}
+
+export function agingReport(items: AgingItem[], now: number = Date.now()): AgingBuckets {
+  const buckets: AgingBuckets = {
+    currentMinor: 0,
+    d1_30Minor: 0,
+    d31_60Minor: 0,
+    d61_90Minor: 0,
+    d90PlusMinor: 0,
+    totalMinor: 0,
+  };
+  for (const item of items) {
+    const due = Date.parse(item.dueDate);
+    if (Number.isNaN(due) || item.balanceMinor <= 0) {
+      continue;
+    }
+    const daysOverdue = Math.floor((now - due) / 86_400_000);
+    if (daysOverdue <= 0) {
+      buckets.currentMinor += item.balanceMinor;
+    } else if (daysOverdue <= 30) {
+      buckets.d1_30Minor += item.balanceMinor;
+    } else if (daysOverdue <= 60) {
+      buckets.d31_60Minor += item.balanceMinor;
+    } else if (daysOverdue <= 90) {
+      buckets.d61_90Minor += item.balanceMinor;
+    } else {
+      buckets.d90PlusMinor += item.balanceMinor;
+    }
+    buckets.totalMinor += item.balanceMinor;
+  }
+  return buckets;
+}

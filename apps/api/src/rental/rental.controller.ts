@@ -497,4 +497,15 @@ export class RentalController {
     }
     return this.rental.moveDeposit(orgIdOf(req), actorIdOf(req), id, "return", amount);
   }
+
+  @Get("contracts/:id/aging")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Aging report: current, 1-30, 31-60, 61-90, 90+ days." })
+  getAging(@Req() req: ActorRequest, @Param("id") id: string) {
+    const query = (req.query as Record<string, unknown> | undefined) ?? {};
+    const asOf = typeof query["asOf"] === "string" ? query["asOf"] : undefined;
+    return asOf === undefined
+      ? this.rental.getAging(id, orgIdOf(req))
+      : this.rental.getAging(id, orgIdOf(req), asOf);
+  }
 }

@@ -19,6 +19,7 @@ export type {
   UnitSubtype,
 } from "./property-setup";
 export {
+  agingReport,
   allocatePayment,
   applyIndexIncrease,
   buildRentSchedule,
@@ -40,6 +41,8 @@ export {
   validateTermination,
 } from "./rental";
 export type {
+  AgingBuckets,
+  AgingItem,
   AllocationResult,
   AnomalyVerdict,
   ChargeBalance,
