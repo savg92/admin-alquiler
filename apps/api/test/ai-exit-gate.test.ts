@@ -79,6 +79,14 @@ describe("Phase 2 exit gate — AI off breaks nothing", () => {
     }
   });
 
+  test("the contract states that decide is gated on calibration", async () => {
+    const body = (await (await fetch(`${baseUrl}/openapi.json`)).json()) as {
+      paths: Record<string, { post?: { responses: Record<string, { description: string }> } }>;
+    };
+    const decide = body.paths["/api/v1/ai/decide"];
+    expect(decide?.post?.responses["201"]?.description).toContain("autoAdvanceAllowed");
+  });
+
   test("AI-disabled is the default, so a deployment with no AI env is safe", async () => {
     const response = await fetch(`${baseUrl}/api/v1/ai/status`, {
       headers: { "X-Org-Id": "org-a" },

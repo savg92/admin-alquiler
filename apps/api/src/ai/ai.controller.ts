@@ -171,7 +171,11 @@ export class AiController {
 
   @Post("decide")
   @RequirePermission("ai:write")
-  @ApiResponse({ status: 201, description: "Typed decision with calibrated confidence." })
+  @ApiResponse({
+    status: 201,
+    description:
+      "Typed decision with calibrated confidence. Reports autoAdvanceAllowed plus the failing calibration checks; a result whose gate is unsatisfied always sets requiresConfirmation.",
+  })
   decide(@Req() req: ActorRequest, @Body() body: unknown) {
     if (!body || typeof body !== "object") {
       throw new ForbiddenException("Invalid request.");
