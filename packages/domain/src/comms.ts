@@ -32,9 +32,11 @@ export function renderTemplate(template: string, vars: Record<string, string | n
   });
 }
 
+const SUPPORTED_LOCALES = new Set(["es-CO", "en"]);
+
 export function validateLocale(value: string): string {
-  if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(value)) {
-    throw new Error(`Unsupported locale "${value}".`);
+  if (!SUPPORTED_LOCALES.has(value)) {
+    throw new Error(`Unsupported locale "${value}". Expected one of: es-CO, en.`);
   }
   return value;
 }

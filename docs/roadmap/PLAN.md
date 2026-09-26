@@ -100,8 +100,8 @@ E2E gate is green.
 
 ### WS-6 — Documents [Stage D]
 
-- [ ] Document types + templates (language/version metadata)
-- [ ] Editor + versioning + attachments
+- [x] Document types + templates (language/version metadata)
+- [x] Editor + versioning + attachments
 - [ ] Approvals + signatures + lifecycle state machine (Draft → … → Final)
 - [ ] Async PDF generation (deterministic, auditable)
 

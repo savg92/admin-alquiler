@@ -105,3 +105,10 @@ export type { AccountInput, LedgerTransactionInput } from "./ledger";
 export type { MaintenanceCase, MaintenanceSla } from "./reporting";
 export { renderTemplate, validateLocale, validateTemplate } from "./comms";
 export type { TemplateDefinition } from "./comms";
+export {
+  canTransitionDocument,
+  validateDocumentBody,
+  validateDocumentTitle,
+  validateTemplateName,
+} from "./documents";
+export type { DocumentStatus } from "./documents";
