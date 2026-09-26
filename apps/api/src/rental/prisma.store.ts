@@ -8,6 +8,10 @@ import type {
   ContractInput,
   ContractRow,
   DepositRow,
+  DunningChannel,
+  DunningEventRow,
+  DunningStageKey,
+  ChargeDetailRow,
   LateFeeRuleInput,
   LateFeeRuleRow,
   LateFeeScope,
@@ -717,6 +721,73 @@ export class PrismaRentalStore implements RentalStore {
       graceDays: row.graceDays,
       base: row.base,
     };
+  }
+
+  async findChargeDetail(chargeId: string, orgId: string): Promise<ChargeDetailRow | null> {
+    const row = await prisma.charge.findFirst({ where: { id: chargeId, orgId } });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      contractId: row.contractId,
+      type: row.type,
+      description: row.description,
+      amountMinor: toMinor(row.amount),
+      dueDate: row.dueDate,
+      period: row.period,
+      status: row.status,
+    };
+  }
+
+  async recordDunningEvent(
+    chargeId: string,
+    stage: DunningStageKey,
+    channel: DunningChannel,
+  ): Promise<{ event: DunningEventRow; created: boolean }> {
+    const existing = await prisma.dunningEvent.findUnique({
+      where: { chargeId_stage_channel: { chargeId, stage, channel } },
+    });
+    if (existing) {
+      return {
+        event: {
+          id: existing.id,
+          chargeId: existing.chargeId,
+          stage: existing.stage,
+          channel: existing.channel,
+          state: existing.state,
+          sentAt: existing.sentAt,
+        },
+        created: false,
+      };
+    }
+    const created = await prisma.dunningEvent.create({ data: { chargeId, stage, channel } });
+    return {
+      event: {
+        id: created.id,
+        chargeId: created.chargeId,
+        stage: created.stage,
+        channel: created.channel,
+        state: created.state,
+        sentAt: created.sentAt,
+      },
+      created: true,
+    };
+  }
+
+  async listDunningEvents(contractId: string): Promise<DunningEventRow[]> {
+    const rows = await prisma.dunningEvent.findMany({
+      where: { charge: { contractId } },
+      orderBy: { sentAt: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      chargeId: row.chargeId,
+      stage: row.stage,
+      channel: row.channel,
+      state: row.state,
+      sentAt: row.sentAt,
+    }));
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {

@@ -581,4 +581,34 @@ export class RentalController {
       ? this.rental.evaluateLateFee(id, orgIdOf(req))
       : this.rental.evaluateLateFee(id, orgIdOf(req), asOf);
   }
+
+  @Post("charges/:chargeId/dunning")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Record a dunning event for an overdue charge." })
+  recordDunningEvent(
+    @Req() req: ActorRequest,
+    @Param("chargeId") chargeId: string,
+    @Body() body: unknown,
+  ) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { channel, asOf } = body as { channel?: unknown; asOf?: unknown };
+    if (channel !== "IN_APP" && channel !== "EMAIL") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (asOf !== undefined && typeof asOf !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return typeof asOf === "string"
+      ? this.rental.recordDunningEvent(orgIdOf(req), actorIdOf(req), chargeId, channel, asOf)
+      : this.rental.recordDunningEvent(orgIdOf(req), actorIdOf(req), chargeId, channel);
+  }
+
+  @Get("contracts/:id/dunning")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "List dunning events for a contract." })
+  listDunningEvents(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.rental.listDunningEvents(id, orgIdOf(req));
+  }
 }

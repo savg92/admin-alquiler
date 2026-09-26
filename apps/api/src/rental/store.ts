@@ -138,6 +138,29 @@ export interface LateFeeRuleInput {
   base?: "TOTAL_DUE" | "RENT_ONLY";
 }
 
+export type DunningChannel = "IN_APP" | "EMAIL";
+export type DunningStageKey = "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30";
+
+export interface DunningEventRow {
+  id: string;
+  chargeId: string;
+  stage: DunningStageKey;
+  channel: DunningChannel;
+  state: string;
+  sentAt: Date;
+}
+
+export interface ChargeDetailRow {
+  id: string;
+  contractId: string;
+  type: string;
+  description: string;
+  amountMinor: number;
+  dueDate: Date;
+  period: string;
+  status: string;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -220,5 +243,12 @@ export interface RentalStore {
   findContractLateFeeRule(contractId: string): Promise<LateFeeRuleRow | null>;
   findOrgLateFeeRule(orgId: string): Promise<LateFeeRuleRow | null>;
   findCountryLateFeeRule(country: string): Promise<LateFeeRuleRow | null>;
+  findChargeDetail(chargeId: string, orgId: string): Promise<ChargeDetailRow | null>;
+  recordDunningEvent(
+    chargeId: string,
+    stage: DunningStageKey,
+    channel: DunningChannel,
+  ): Promise<{ event: DunningEventRow; created: boolean }>;
+  listDunningEvents(contractId: string): Promise<DunningEventRow[]>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

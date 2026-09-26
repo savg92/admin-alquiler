@@ -858,6 +858,68 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return this.lateFeeRules.find((row) => row.scope === "COUNTRY") ?? null;
   }
 
+  async findChargeDetail(id: string, orgId: string) {
+    const charge = this.charges.get(id);
+    if (!charge) {
+      return null;
+    }
+    const contract = this.contracts.get(charge.contractId);
+    if (!contract || contract.orgId !== orgId) {
+      return null;
+    }
+    return {
+      id: charge.id,
+      contractId: charge.contractId,
+      type: charge.type,
+      description: charge.description,
+      amountMinor: charge.amountMinor,
+      dueDate: charge.dueDate,
+      period: charge.period,
+      status: charge.status,
+    };
+  }
+
+  dunning = new Map<
+    string,
+    {
+      id: string;
+      chargeId: string;
+      stage: "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30";
+      channel: "IN_APP" | "EMAIL";
+      state: string;
+      sentAt: Date;
+    }
+  >();
+
+  async recordDunningEvent(
+    chargeId: string,
+    stage: "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30",
+    channel: "IN_APP" | "EMAIL",
+  ) {
+    const key = `${chargeId}:${stage}:${channel}`;
+    const existing = this.dunning.get(key);
+    if (existing) {
+      return { event: existing, created: false };
+    }
+    const event = {
+      id: `dun-${this.dunning.size + 1}`,
+      chargeId,
+      stage,
+      channel,
+      state: "sent",
+      sentAt: new Date(),
+    };
+    this.dunning.set(key, event);
+    return { event, created: true };
+  }
+
+  async listDunningEvents(contractId: string) {
+    const chargeIds = new Set(
+      [...this.charges.values()].filter((c) => c.contractId === contractId).map((c) => c.id),
+    );
+    return [...this.dunning.values()].filter((event) => chargeIds.has(event.chargeId));
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

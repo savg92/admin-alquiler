@@ -16,6 +16,8 @@ import {
   consumptionBetween,
   depositRemaining,
   detectReadingAnomaly,
+  dunningStageFor,
+  dunningTemplateKey,
   evaluateLateFee,
   periodDueDate,
   quoteIndemnity,
@@ -31,7 +33,7 @@ import {
   type IndemnityRuleId,
 } from "@admin-alquiler/domain";
 import { RENTAL_STORE } from "./tokens";
-import type { ChargeRow, CodeudorInput, ContractRow, RentalStore } from "./store";
+import type { ChargeRow, CodeudorInput, ContractRow, DunningChannel, RentalStore } from "./store";
 
 const PAYMENT_METHODS = ["TRANSFER", "PSE", "CASH", "CHECK", "CARD", "OTHER"];
 
@@ -807,5 +809,47 @@ export class RentalService {
       lines,
       totalMinor,
     };
+  }
+
+  async recordDunningEvent(
+    orgId: string,
+    actorId: string,
+    chargeId: string,
+    channel: DunningChannel,
+    asOf?: string,
+  ) {
+    const charge = await this.store.findChargeDetail(chargeId, orgId);
+    if (!charge) {
+      throw new NotFoundException("Charge not found.");
+    }
+    if (charge.status === "PAID" || charge.status === "WAIVED") {
+      throw new BadRequestException("Charge is already settled.");
+    }
+    const now = asOf ? parseDate(asOf, "asOf").getTime() : Date.now();
+    const daysOverdue = Math.floor((now - charge.dueDate.getTime()) / 86_400_000);
+    const stage = dunningStageFor(daysOverdue);
+    if (stage === null) {
+      throw new BadRequestException("Charge is not yet due for dunning (minimum 3 days overdue).");
+    }
+    const stageKey = `DAY_${stage}` as "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30";
+    const { event, created } = await this.store.recordDunningEvent(chargeId, stageKey, channel);
+    if (created) {
+      await this.store.writeAuditEvent(
+        buildAuditEvent({
+          orgId,
+          actorId,
+          action: "dunning.sent",
+          entityType: "DunningEvent",
+          entityId: event.id,
+          metadata: { chargeId, stage: stageKey, channel },
+        }),
+      );
+    }
+    return { event, created, daysOverdue, templateKey: dunningTemplateKey(stage) };
+  }
+
+  async listDunningEvents(contractId: string, orgId: string) {
+    await this.getContract(contractId, orgId);
+    return this.store.listDunningEvents(contractId);
   }
 }

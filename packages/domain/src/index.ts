@@ -19,6 +19,7 @@ export type {
   UnitSubtype,
 } from "./property-setup";
 export {
+  COLOMBIA_DEFAULT_LATE_FEE,
   agingReport,
   allocatePayment,
   applyIndexIncrease,
@@ -27,6 +28,8 @@ export {
   consumptionBetween,
   depositRemaining,
   detectReadingAnomaly,
+  dunningStageFor,
+  dunningTemplateKey,
   evaluateLateFee,
   expiringPolicies,
   periodDueDate,
@@ -41,7 +44,6 @@ export {
   validateMeterReading,
   validateRenewalTerms,
   validateTermination,
-  COLOMBIA_DEFAULT_LATE_FEE,
 } from "./rental";
 export type {
   AgingBuckets,
@@ -53,6 +55,7 @@ export type {
   CodeudorTermsInput,
   ContractTermsInput,
   DepositLedger,
+  DunningStage,
   IndemnityQuote,
   IndemnityRuleId,
   LateFeeBase,

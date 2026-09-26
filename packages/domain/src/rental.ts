@@ -459,3 +459,28 @@ export function evaluateLateFee(
   }
   return { applied: true, feeMinor: Math.round((balanceMinor * rule.rate) / 100), daysOverdue };
 }
+
+export type DunningStage = 3 | 7 | 15 | 30;
+
+export function dunningStageFor(daysOverdue: number): DunningStage | null {
+  if (!Number.isInteger(daysOverdue)) {
+    throw new Error("daysOverdue must be an integer.");
+  }
+  if (daysOverdue >= 30) {
+    return 30;
+  }
+  if (daysOverdue >= 15) {
+    return 15;
+  }
+  if (daysOverdue >= 7) {
+    return 7;
+  }
+  if (daysOverdue >= 3) {
+    return 3;
+  }
+  return null;
+}
+
+export function dunningTemplateKey(stage: DunningStage): string {
+  return `dunning.day_${stage}`;
+}

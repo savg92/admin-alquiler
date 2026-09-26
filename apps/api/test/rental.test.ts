@@ -506,6 +506,68 @@ class FakeRentalStore implements RentalStore {
     return this.lateFeeRules.find((row) => row.scope === "COUNTRY") ?? null;
   }
 
+  async findChargeDetail(id: string, orgId: string) {
+    const charge = this.charges.get(id);
+    if (!charge) {
+      return null;
+    }
+    const contract = this.contracts.get(charge.contractId);
+    if (!contract || contract.orgId !== orgId) {
+      return null;
+    }
+    return {
+      id: charge.id,
+      contractId: charge.contractId,
+      type: charge.type,
+      description: charge.description,
+      amountMinor: charge.amountMinor,
+      dueDate: charge.dueDate,
+      period: charge.period,
+      status: charge.status,
+    };
+  }
+
+  dunning = new Map<
+    string,
+    {
+      id: string;
+      chargeId: string;
+      stage: "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30";
+      channel: "IN_APP" | "EMAIL";
+      state: string;
+      sentAt: Date;
+    }
+  >();
+
+  async recordDunningEvent(
+    chargeId: string,
+    stage: "DAY_3" | "DAY_7" | "DAY_15" | "DAY_30",
+    channel: "IN_APP" | "EMAIL",
+  ) {
+    const key = `${chargeId}:${stage}:${channel}`;
+    const existing = this.dunning.get(key);
+    if (existing) {
+      return { event: existing, created: false };
+    }
+    const event = {
+      id: `dun-${this.dunning.size + 1}`,
+      chargeId,
+      stage,
+      channel,
+      state: "sent",
+      sentAt: new Date(),
+    };
+    this.dunning.set(key, event);
+    return { event, created: true };
+  }
+
+  async listDunningEvents(contractId: string) {
+    const chargeIds = new Set(
+      [...this.charges.values()].filter((c) => c.contractId === contractId).map((c) => c.id),
+    );
+    return [...this.dunning.values()].filter((event) => chargeIds.has(event.chargeId));
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -1102,5 +1164,56 @@ describe("rental core", () => {
     expect(inGrace.totalMinor).toBe(0);
     expect(inGrace.lines[0]?.applied).toBe(false);
     expect(rentalStore.audits).toContain("late_fee.rule_configured");
+  });
+
+  test("dunning events fire at 3/7/15/30-day stages per channel", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-DUN",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    const generated = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/charges:generate`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ period: "2026-02" }),
+      })
+    ).json()) as { charge: { id: string } };
+    const send = (channel: string, asOf: string) =>
+      fetch(`${baseUrl}/api/v1/charges/${generated.charge.id}/dunning`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ channel, asOf }),
+      });
+    const tooEarly = await send("IN_APP", "2026-02-06");
+    expect(tooEarly.status).toBe(400);
+    const first = (await (await send("IN_APP", "2026-02-15")).json()) as {
+      event: { stage: string };
+      created: boolean;
+      templateKey: string;
+    };
+    expect(first.created).toBe(true);
+    expect(first.event.stage).toBe("DAY_7");
+    expect(first.templateKey).toBe("dunning.day_7");
+    const repeat = (await (await send("IN_APP", "2026-02-15")).json()) as { created: boolean };
+    expect(repeat.created).toBe(false);
+    const otherChannel = (await (await send("EMAIL", "2026-02-15")).json()) as {
+      created: boolean;
+    };
+    expect(otherChannel.created).toBe(true);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/dunning`, { headers: headers() })
+    ).json()) as { stage: string }[];
+    expect(listed).toHaveLength(2);
+    expect(rentalStore.audits).toContain("dunning.sent");
   });
 });
