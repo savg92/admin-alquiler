@@ -559,6 +559,54 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return this.receipts.get(id) ?? null;
   }
 
+  codeudores = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      name: string;
+      documentId: string | null;
+      contact: string | null;
+      validFrom: Date;
+      validUntil: Date | null;
+    }
+  >();
+
+  async createCodeudor(
+    contractId: string,
+    input: {
+      name: string;
+      documentId?: string | null;
+      contact?: string | null;
+      validFrom: string;
+      validUntil?: string | null;
+    },
+  ) {
+    const id = `codeudor-${this.codeudores.size + 1}`;
+    const row = {
+      id,
+      contractId,
+      name: input.name,
+      documentId: input.documentId ?? null,
+      contact: input.contact ?? null,
+      validFrom: new Date(input.validFrom),
+      validUntil: input.validUntil ? new Date(input.validUntil) : null,
+    };
+    this.codeudores.set(id, row);
+    return row;
+  }
+
+  async listCodeudores(contractId: string) {
+    return [...this.codeudores.values()].filter((row) => row.contractId === contractId);
+  }
+
+  async expiringCodeudores() {
+    const now = Date.now();
+    return [...this.codeudores.values()]
+      .filter((row) => row.validUntil && row.validUntil.getTime() >= now)
+      .map((row) => ({ ...row, contractNumber: "C-E2E" }));
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

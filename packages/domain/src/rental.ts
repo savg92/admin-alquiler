@@ -82,3 +82,50 @@ export function chargePaymentStatus(balanceMinor: number, paidMinor: number): Ch
   }
   return paidMinor >= balanceMinor ? "PAID" : "PARTIAL";
 }
+
+export interface CodeudorTermsInput {
+  name: string;
+  validFrom: string;
+  validUntil?: string | null;
+}
+
+export function validateCodeudorTerms(input: CodeudorTermsInput): void {
+  if (input.name.trim().length === 0) {
+    throw new Error("Codeudor name is required.");
+  }
+  const from = Date.parse(input.validFrom);
+  if (Number.isNaN(from)) {
+    throw new Error('Invalid date "validFrom".');
+  }
+  if (input.validUntil !== undefined && input.validUntil !== null) {
+    const until = Date.parse(input.validUntil);
+    if (Number.isNaN(until)) {
+      throw new Error('Invalid date "validUntil".');
+    }
+    if (until < from) {
+      throw new Error("Codeudor validUntil must be on or after validFrom.");
+    }
+  }
+}
+
+export interface PolicyExpiry {
+  id: string;
+  validUntil: string | null;
+}
+
+export function expiringPolicies(
+  policies: PolicyExpiry[],
+  now: number = Date.now(),
+  withinDays = 30,
+): PolicyExpiry[] {
+  const horizon = now + withinDays * 86_400_000;
+  return policies
+    .filter((policy) => {
+      if (!policy.validUntil) {
+        return false;
+      }
+      const end = Date.parse(policy.validUntil);
+      return !Number.isNaN(end) && end >= now && end <= horizon;
+    })
+    .sort((a, b) => Date.parse(a.validUntil as string) - Date.parse(b.validUntil as string));
+}

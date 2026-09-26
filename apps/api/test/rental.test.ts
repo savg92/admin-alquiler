@@ -213,6 +213,54 @@ class FakeRentalStore implements RentalStore {
     return { id, number: "R-TEST", locale: "es-CO", paymentId: id.replace("receipt-", "") };
   }
 
+  codeudores = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      name: string;
+      documentId: string | null;
+      contact: string | null;
+      validFrom: Date;
+      validUntil: Date | null;
+    }
+  >();
+
+  async createCodeudor(
+    contractId: string,
+    input: {
+      name: string;
+      documentId?: string | null;
+      contact?: string | null;
+      validFrom: string;
+      validUntil?: string | null;
+    },
+  ) {
+    const id = `codeudor-${this.codeudores.size + 1}`;
+    const row = {
+      id,
+      contractId,
+      name: input.name,
+      documentId: input.documentId ?? null,
+      contact: input.contact ?? null,
+      validFrom: new Date(input.validFrom),
+      validUntil: input.validUntil ? new Date(input.validUntil) : null,
+    };
+    this.codeudores.set(id, row);
+    return row;
+  }
+
+  async listCodeudores(contractId: string) {
+    return [...this.codeudores.values()].filter((row) => row.contractId === contractId);
+  }
+
+  async expiringCodeudores() {
+    const now = Date.now();
+    return [...this.codeudores.values()]
+      .filter((row) => row.validUntil && row.validUntil.getTime() >= now)
+      .map((row) => ({ ...row, contractNumber: "C-TEST" }));
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -417,5 +465,40 @@ describe("rental core", () => {
     expect(contracts.status).toBe(403);
     const anonymous = await fetch(`${baseUrl}/api/v1/contracts`);
     expect(anonymous.status).toBe(403);
+  });
+
+  test("codeudores link with validity dates and expiry listing", async () => {
+    const contracts = (await (
+      await fetch(`${baseUrl}/api/v1/contracts`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const contractId = contracts[0]?.id ?? "";
+    const created = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/codeudores`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        name: "Codeudor Uno",
+        documentId: "CC-123",
+        validFrom: "2026-02-01",
+        validUntil: "2027-01-31",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const badDates = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/codeudores`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ name: "Bad", validFrom: "2027-01-31", validUntil: "2026-02-01" }),
+    });
+    expect(badDates.status).toBe(400);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contractId}/codeudores`, {
+        headers: headers(),
+      })
+    ).json()) as { name: string }[];
+    expect(listed.map((row) => row.name)).toContain("Codeudor Uno");
+    const expiries = await fetch(`${baseUrl}/api/v1/codeudor-expiries?withinDays=365`, {
+      headers: headers(),
+    });
+    expect(expiries.status).toBe(200);
+    expect(rentalStore.audits).toContain("codeudor.created");
   });
 });

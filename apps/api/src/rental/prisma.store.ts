@@ -3,6 +3,8 @@ import type {
   AuditInput,
   ChargeBalanceInput,
   ChargeRow,
+  CodeudorInput,
+  CodeudorRow,
   ContractInput,
   ContractRow,
   RentalStore,
@@ -258,6 +260,69 @@ export class PrismaRentalStore implements RentalStore {
       select: { id: true, number: true, locale: true, paymentId: true },
     });
     return row;
+  }
+
+  async createCodeudor(contractId: string, input: CodeudorInput): Promise<CodeudorRow> {
+    const created = await prisma.codeudor.create({
+      data: {
+        contractId,
+        name: input.name,
+        documentId: input.documentId ?? null,
+        contact: input.contact ?? null,
+        validFrom: new Date(input.validFrom),
+        validUntil: input.validUntil ? new Date(input.validUntil) : null,
+      },
+    });
+    return {
+      id: created.id,
+      contractId: created.contractId,
+      name: created.name,
+      documentId: created.documentId,
+      contact: created.contact,
+      validFrom: created.validFrom,
+      validUntil: created.validUntil,
+    };
+  }
+
+  async listCodeudores(contractId: string): Promise<CodeudorRow[]> {
+    const rows = await prisma.codeudor.findMany({
+      where: { contractId },
+      orderBy: { validFrom: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      contractId: row.contractId,
+      name: row.name,
+      documentId: row.documentId,
+      contact: row.contact,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
+    }));
+  }
+
+  async expiringCodeudores(
+    orgId: string,
+    before: Date,
+  ): Promise<(CodeudorRow & { contractNumber: string })[]> {
+    const now = new Date();
+    const rows = await prisma.codeudor.findMany({
+      where: {
+        contract: { orgId },
+        validUntil: { gte: now, lte: before },
+      },
+      include: { contract: { select: { number: true } } },
+      orderBy: { validUntil: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      contractId: row.contractId,
+      name: row.name,
+      documentId: row.documentId,
+      contact: row.contact,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
+      contractNumber: row.contract.number,
+    }));
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {

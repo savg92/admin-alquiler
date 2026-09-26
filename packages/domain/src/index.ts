@@ -21,16 +21,20 @@ export type {
 export {
   allocatePayment,
   chargePaymentStatus,
+  expiringPolicies,
   periodDueDate,
   periodKey,
+  validateCodeudorTerms,
   validateContractTerms,
 } from "./rental";
 export type {
   AllocationResult,
   ChargeBalance,
   ChargePaymentStatus,
+  CodeudorTermsInput,
   ContractTermsInput,
   PaymentAllocation,
+  PolicyExpiry,
 } from "./rental";
 export {
   ATTACHMENT_KINDS,

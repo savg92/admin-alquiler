@@ -76,7 +76,7 @@ E2E gate is green.
 ### WS-4 — Rental [Stage B: core → Stage C: remainder]
 
 - [x] Contracts (documents, dates, terms, status, parties)
-- [ ] Codeudores + linked rental policy (validity dates, policy-expiry reminders)
+- [x] Codeudores + linked rental policy (validity dates, policy-expiry reminders)
 - [ ] Contract expiry/renewal reminders (90/60/30 days) + renewal workflow
 - [ ] Early termination (notice/effective dates, cause, country-pluggable indemnity as charge/credit)
 - [ ] Rent schedules + IPC increases (country-pluggable cap; CO DANE auto-fetch + manual correction)

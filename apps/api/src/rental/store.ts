@@ -52,6 +52,24 @@ export interface ReceiptRow {
   locale: string;
 }
 
+export interface CodeudorRow {
+  id: string;
+  contractId: string;
+  name: string;
+  documentId: string | null;
+  contact: string | null;
+  validFrom: Date;
+  validUntil: Date | null;
+}
+
+export interface CodeudorInput {
+  name: string;
+  documentId?: string | null;
+  contact?: string | null;
+  validFrom: string;
+  validUntil?: string | null;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -94,5 +112,11 @@ export interface RentalStore {
   updateChargeStatus(chargeId: string, status: string): Promise<void>;
   createReceipt(paymentId: string, number: string, locale: string): Promise<ReceiptRow>;
   findReceipt(id: string, orgId: string): Promise<(ReceiptRow & { paymentId: string }) | null>;
+  createCodeudor(contractId: string, input: CodeudorInput): Promise<CodeudorRow>;
+  listCodeudores(contractId: string): Promise<CodeudorRow[]>;
+  expiringCodeudores(
+    orgId: string,
+    before: Date,
+  ): Promise<(CodeudorRow & { contractNumber: string })[]>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

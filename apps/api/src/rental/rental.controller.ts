@@ -144,4 +144,58 @@ export class RentalController {
   getReceipt(@Req() req: ActorRequest, @Param("id") id: string) {
     return this.rental.getReceipt(id, orgIdOf(req));
   }
+
+  @Post("contracts/:id/codeudores")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Codeudor linked to contract." })
+  addCodeudor(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { name, documentId, contact, validFrom, validUntil } = body as {
+      name?: unknown;
+      documentId?: unknown;
+      contact?: unknown;
+      validFrom?: unknown;
+      validUntil?: unknown;
+    };
+    if (typeof name !== "string" || typeof validFrom !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (documentId !== undefined && documentId !== null && typeof documentId !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (contact !== undefined && contact !== null && typeof contact !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (validUntil !== undefined && validUntil !== null && typeof validUntil !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.addCodeudor(orgIdOf(req), actorIdOf(req), id, {
+      name,
+      documentId: typeof documentId === "string" ? documentId : null,
+      contact: typeof contact === "string" ? contact : null,
+      validFrom,
+      validUntil: typeof validUntil === "string" ? validUntil : null,
+    });
+  }
+
+  @Get("contracts/:id/codeudores")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Contract codeudores." })
+  listCodeudores(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.rental.listCodeudores(id, orgIdOf(req));
+  }
+
+  @Get("codeudor-expiries")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Codeudor policies expiring within N days." })
+  listExpiringPolicies(@Req() req: ActorRequest) {
+    const raw = (req.query as Record<string, unknown> | undefined)?.["withinDays"];
+    const withinDays = typeof raw === "string" ? Number.parseInt(raw, 10) : 30;
+    return this.rental.listExpiringPolicies(
+      orgIdOf(req),
+      Number.isInteger(withinDays) ? withinDays : 30,
+    );
+  }
 }

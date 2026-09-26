@@ -10,10 +10,11 @@ import {
   buildAuditEvent,
   chargePaymentStatus,
   periodDueDate,
+  validateCodeudorTerms,
   validateContractTerms,
 } from "@admin-alquiler/domain";
 import { RENTAL_STORE } from "./tokens";
-import type { ChargeRow, ContractRow, RentalStore } from "./store";
+import type { ChargeRow, CodeudorInput, ContractRow, RentalStore } from "./store";
 
 const PAYMENT_METHODS = ["TRANSFER", "PSE", "CASH", "CHECK", "CARD", "OTHER"];
 
@@ -233,5 +234,54 @@ export class RentalService {
       throw new NotFoundException("Receipt not found.");
     }
     return found;
+  }
+
+  async addCodeudor(orgId: string, actorId: string, contractId: string, input: CodeudorInput) {
+    await this.getContract(contractId, orgId);
+    if (input.name.trim().length === 0) {
+      throw new BadRequestException("Codeudor name is required.");
+    }
+    try {
+      validateCodeudorTerms({
+        name: input.name,
+        validFrom: input.validFrom,
+        validUntil: input.validUntil ?? null,
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid codeudor.");
+    }
+    parseDate(input.validFrom, "validFrom");
+    if (input.validUntil !== undefined && input.validUntil !== null) {
+      parseDate(input.validUntil, "validUntil");
+    }
+    const created = await this.store.createCodeudor(contractId, {
+      name: input.name.trim(),
+      documentId: input.documentId ?? null,
+      contact: input.contact ?? null,
+      validFrom: input.validFrom,
+      validUntil: input.validUntil ?? null,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "codeudor.created",
+        entityType: "Codeudor",
+        entityId: created.id,
+        metadata: { contractId },
+      }),
+    );
+    return created;
+  }
+
+  async listCodeudores(contractId: string, orgId: string) {
+    await this.getContract(contractId, orgId);
+    return this.store.listCodeudores(contractId);
+  }
+
+  async listExpiringPolicies(orgId: string, withinDays = 30) {
+    const days = Number.isInteger(withinDays) && withinDays > 0 ? Math.min(withinDays, 365) : 30;
+    const before = new Date(Date.now() + days * 86_400_000);
+    return this.store.expiringCodeudores(orgId, before);
   }
 }
