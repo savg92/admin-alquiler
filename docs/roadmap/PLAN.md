@@ -135,7 +135,7 @@ E2E gate is green.
 - [x] Service worker with safe caching
 - [x] Offline queue foundation + sync conflict strategy
 - [x] Camera/photo upload workflows (proofs, meters, maintenance, properties)
-- [ ] Self-service portals (same PWA, role-guarded: tenant upload/track; owner view-only P&L)
+- [x] Self-service portals (same PWA, role-guarded: tenant upload/track; owner view-only P&L)
 
 ### WS-11 — Security [Stage D, hardening pass over all]
 
