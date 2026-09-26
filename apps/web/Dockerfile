@@ -1,11 +1,11 @@
 FROM oven/bun:1.4 AS build
 WORKDIR /app
 
-COPY package.json bun.lock tsconfig.json biome.json ./
+COPY package.json bun.lock tsconfig.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
 
-RUN bun install --filter '@admin-alquiler/web'
+RUN bun install
 RUN bun run --filter '@admin-alquiler/web' build
 
 FROM caddy:2-alpine AS runtime

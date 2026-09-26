@@ -55,6 +55,7 @@
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^4.3.4",
+        "bun-types": "1.4.2",
         "typescript": "5.9.2",
         "vite": "^6.0.0",
         "vite-plugin-pwa": "^0.21.0",
@@ -97,6 +98,7 @@
       "name": "@admin-alquiler/database",
       "version": "0.1.0",
       "dependencies": {
+        "@admin-alquiler/permissions": "workspace:*",
         "@admin-alquiler/shared": "workspace:*",
         "@prisma/client": "^6.0.0",
       },

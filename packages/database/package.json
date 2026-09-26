@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@admin-alquiler/permissions": "workspace:*",
     "@admin-alquiler/shared": "workspace:*",
     "@prisma/client": "^6.0.0"
   },

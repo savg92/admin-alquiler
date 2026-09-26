@@ -65,17 +65,50 @@ Details: [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md).
 
 ### Docker Compose
 
-`compose.yaml` defines PostgreSQL, Redis, MinIO, API, worker, web and Caddy, and Caddy is the only
-published ingress (`:8080` HTTP, `:8443` HTTPS). Two things to know before relying on it:
+`compose.yaml` defines PostgreSQL, Redis, MinIO, API, worker, web and Caddy. Caddy is the public
+ingress (`:8080` HTTP, `:8443` HTTPS); the three infrastructure services also publish their ports so a
+host-run app can reach them:
 
-- **Secrets are required.** Compose refuses to start without `POSTGRES_PASSWORD`, `DATABASE_URL`,
-  `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`; `cp .env.example .env` supplies placeholders.
-- **The application images do not build yet.** All three Dockerfiles copy a `biome.json` that is not
-  in the repository, so `docker compose build` fails. Until that is fixed, run the apps on the host
-  as above and use Compose for infrastructure only.
+| Service                  | Port        | Override                            |
+| ------------------------ | ----------- | ----------------------------------- |
+| postgres                 | 5432        | `POSTGRES_PORT`                     |
+| redis                    | 6379        | `REDIS_PORT`                        |
+| minio (S3 API / console) | 9000 / 9001 | `MINIO_PORT` / `MINIO_CONSOLE_PORT` |
 
-Compose also does not publish the PostgreSQL port, so a host-run app cannot reach the Compose
-database. Either run your own PostgreSQL, or publish the port before `docker compose up -d`.
+```bash
+cp .env.example .env
+docker compose up -d postgres redis minio
+bun run --filter '@admin-alquiler/database' db:migrate
+SEED_LOCALE=es-CO bun run --filter '@admin-alquiler/database' db:seed
+bun run dev
+```
+
+Two things to know:
+
+- **`POSTGRES_PASSWORD` only applies when the volume is first created.** After changing it in `.env`,
+  the database keeps the old password — run `docker compose down -v` to re-initialise (this deletes
+  all local data).
+- **The infrastructure ports are published for local development.** Remove the `ports:` block from
+  `postgres`, `redis` and `minio` before exposing this compose file beyond a development machine.
+
+The MinIO service uses the maintained `pgsty/minio` fork: upstream MinIO's community edition is now
+source-only and its Docker Hub image no longer exists. The fork is a drop-in replacement — same
+environment variables, same `server /data` command, same on-disk format, so existing volumes keep
+working.
+
+#### Containers vs. host
+
+A `migrate` service applies migrations before the API starts, so `docker compose up` is enough on an
+empty volume. `postgres`, `redis`, `minio`, `api` and `worker` all come up healthy.
+
+Caddy is the only service that publishes the application itself, and it bind-mounts
+`infrastructure/caddy/Caddyfile`. On macOS, if the repository lives under a protected folder
+(`~/Desktop`, `~/Documents`, `~/Downloads`), Docker Desktop cannot read that mount and Caddy exits
+with `reading config from file: … operation not permitted`. Grant Docker Desktop file access to the
+project path, or move the project somewhere unrestricted.
+
+Until then, run the applications on the host (`bun run dev`) against the Compose infrastructure —
+that is the path the Quickstart above uses.
 
 ## Commands
 

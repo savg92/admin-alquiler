@@ -1,5 +1,6 @@
 import { randomBytes, scryptSync } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { PERMISSION_KEYS } from "@admin-alquiler/permissions";
 import { resolveSeedLocale } from "./locales";
 
 function hashPasswordPlaceholder(password: string): string {
@@ -29,18 +30,7 @@ async function main(): Promise<void> {
       },
     });
 
-    const permissions = [
-      "property:read",
-      "property:write",
-      "contract:read",
-      "contract:write",
-      "payment:read",
-      "payment:write",
-      "settlement:read",
-      "settlement:write",
-      "finance:read",
-      "finance:write",
-    ];
+    const permissions = [...PERMISSION_KEYS];
     for (const key of permissions) {
       await prisma.permission.upsert({
         where: { key },

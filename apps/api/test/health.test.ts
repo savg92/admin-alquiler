@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import net from "node:net";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -73,5 +74,29 @@ describe("WS-12 reliability endpoints", () => {
       expect(typeof queue.name).toBe("string");
       expect(["ok", "unreachable"]).toContain(queue.status);
     }
+  });
+
+  test("a reachable Redis is reported as ok, not unreachable", async () => {
+    const url = new URL(process.env.REDIS_URL ?? "redis://localhost:6379");
+    const reachable = await new Promise<boolean>((resolve) => {
+      const socket = net.connect({ host: url.hostname, port: Number(url.port || 6379) });
+      const done = (value: boolean) => {
+        socket.destroy();
+        resolve(value);
+      };
+      socket.setTimeout(2000);
+      socket.once("connect", () => done(true));
+      socket.once("error", () => done(false));
+      socket.once("timeout", () => done(false));
+    });
+    if (!reachable) {
+      return;
+    }
+    const body = (await (await fetch(`${baseUrl}/ready`)).json()) as {
+      status: string;
+      checks: Record<string, { status: string; detail?: string } | undefined>;
+    };
+    expect(body.checks.queue?.status).toBe("ok");
+    expect(body.status).toBe("ok");
   });
 });

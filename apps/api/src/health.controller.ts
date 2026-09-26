@@ -70,6 +70,9 @@ async function checkRedis(): Promise<DependencyCheck> {
   });
   redis.on("error", () => undefined);
   try {
+    // lazyConnect defers the handshake, and enableOfflineQueue rejects commands issued
+    // before the socket is ready, so the connect has to be awaited explicitly.
+    await withTimeout(redis.connect(), 2000, "redis connect");
     await withTimeout(redis.ping(), 2000, "redis ping");
     return { status: "ok", latencyMs: Date.now() - startedAt };
   } catch (error) {

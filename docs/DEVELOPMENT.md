@@ -21,20 +21,21 @@ cp .env.example .env
 ```
 
 `compose.yaml` refuses to start without secrets, and nothing has a working default, so the `.env`
-step is required. Database schema and the Colombian demo dataset:
+step is required.
+
+The infrastructure services publish their ports for local development, so a host-run app can use
+them:
 
 ```bash
+docker compose up -d postgres redis minio
 bun run --filter '@admin-alquiler/database' db:generate
 bun run --filter '@admin-alquiler/database' db:migrate
 SEED_LOCALE=es-CO bun run --filter '@admin-alquiler/database' db:seed
-```
-
-The application images in `compose.yaml` do not currently build (see the README), so run the apps on
-the host and use Compose for infrastructure only:
-
-```bash
 bun run dev
 ```
+
+`POSTGRES_PASSWORD` is only applied when the database volume is first created; after changing it,
+run `docker compose down -v` to re-initialise (this deletes local data).
 
 Python tools, where required:
 
