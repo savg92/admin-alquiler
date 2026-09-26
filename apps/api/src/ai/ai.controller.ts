@@ -302,6 +302,20 @@ export class AiController {
     return this.registry.listModels(status, runtime);
   }
 
+  @Post("models/:id/evaluations")
+  @RequirePermission("ai:write")
+  @ApiResponse({ status: 201, description: "Record an evaluation score for a model." })
+  recordEvaluation(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { score } = body as { score?: unknown };
+    if (typeof score !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.registry.recordEvaluation(orgIdOf(req), actorIdOf(req), id, score);
+  }
+
   @Post("models/:id/transitions")
   @RequirePermission("ai:write")
   @ApiResponse({ status: 201, description: "Advance model lifecycle (no auto-deploy)." })

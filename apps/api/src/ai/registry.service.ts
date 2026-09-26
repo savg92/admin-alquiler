@@ -12,6 +12,7 @@ import type { AiStore } from "./store";
 
 const RUNTIMES = ["local", "webgpu", "provider", "disabled"];
 const LIFECYCLES = ["candidate", "installed", "evaluated", "approved", "active", "deprecated"];
+const SCOREABLE: ReadonlySet<string> = new Set(["evaluated", "approved", "active"]);
 
 @Injectable()
 export class RegistryService {
@@ -86,6 +87,38 @@ export class RegistryService {
             ...(runtime === undefined ? {} : { runtime }),
           },
     );
+  }
+
+  async recordEvaluation(
+    orgId: string | null,
+    actorId: string | null,
+    modelId: string,
+    score: number,
+  ) {
+    if (!Number.isFinite(score) || score < 0 || score > 1) {
+      throw new BadRequestException("score must be within [0, 1].");
+    }
+    const found = await this.store.findModel(modelId);
+    if (!found) {
+      throw new NotFoundException("Model not found.");
+    }
+    if (!SCOREABLE.has(found.status)) {
+      throw new BadRequestException(
+        `Model must be in evaluated state to record a score (currently ${found.status}).`,
+      );
+    }
+    const updated = await this.store.setModelScore(modelId, score);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        ...(orgId === null ? {} : { orgId }),
+        ...(actorId === null ? {} : { actorId }),
+        action: "ai.model_evaluated",
+        entityType: "AIModel",
+        entityId: updated.id,
+        metadata: { modelId, score, previousScore: found.score },
+      }),
+    );
+    return updated;
   }
 
   async transitionModel(orgId: string | null, actorId: string | null, modelId: string, to: string) {

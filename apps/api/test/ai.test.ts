@@ -764,6 +764,59 @@ describe("§6 model registry lifecycle", () => {
     });
     expect(revive.status).toBe(400);
   });
+
+  test("an evaluation score is only accepted once the model is evaluated", async () => {
+    await post("models", {
+      modelId: "laya-0.4b",
+      version: "0.4.0",
+      provider: "self-hosted",
+      runtime: "local",
+      languages: ["es"],
+      privacyTier: "local-only",
+    });
+    const tooEarly = await fetch(`${baseUrl}/api/v1/ai/models/laya-0.4b/evaluations`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ score: 0.82 }),
+    });
+    expect(tooEarly.status).toBe(400);
+
+    for (const to of ["installed", "evaluated"]) {
+      await fetch(`${baseUrl}/api/v1/ai/models/laya-0.4b/transitions`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ to }),
+      });
+    }
+    const scored = await fetch(`${baseUrl}/api/v1/ai/models/laya-0.4b/evaluations`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ score: 0.82 }),
+    });
+    expect(scored.status).toBe(201);
+    const row = (await scored.json()) as { score: number; status: string };
+    expect(row.score).toBeCloseTo(0.82, 5);
+    expect(row.status).toBe("evaluated");
+    expect(aiStore.audits.map((entry) => entry.action)).toContain("ai.model_evaluated");
+  });
+
+  test("an out-of-range evaluation score is rejected", async () => {
+    const response = await fetch(`${baseUrl}/api/v1/ai/models/laya-0.4b/evaluations`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ score: 4.2 }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("a score for an unknown model is a 404", async () => {
+    const response = await fetch(`${baseUrl}/api/v1/ai/models/no-existe/evaluations`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ score: 0.5 }),
+    });
+    expect(response.status).toBe(404);
+  });
 });
 
 describe("§11 decision calibration gate", () => {

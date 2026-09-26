@@ -189,10 +189,10 @@ E2E gate is green.
 
 ### Registry, flags, privacy, safety (§6–§9)
 
-- [ ] Model registry (metadata + lifecycle; no auto-deploy of new models)
-- [ ] AI flags (`AI_ENABLED`, `AI_WEBGPU_ENABLED`, `AI_LOCAL_MODELS`, `AI_EXTERNAL_PROVIDER`)
-- [ ] Privacy policy engine (data classes; FINANCIAL/LEGAL/PERSONAL local-only by default)
-- [ ] Safety pipeline on every call (classify → minimize → select → infer → validate → authorize → confirm)
+- [x] Model registry (metadata + lifecycle; no auto-deploy of new models)
+- [x] AI flags (`AI_ENABLED`, `AI_WEBGPU_ENABLED`, `AI_LOCAL_MODELS`, `AI_EXTERNAL_PROVIDER`)
+- [x] Privacy policy engine (data classes; FINANCIAL/LEGAL/PERSONAL local-only by default)
+- [/] Safety pipeline on every call (classify → minimize → select → infer → validate → authorize → confirm)
 
 ### Features + evaluation (§10–§12)
 
