@@ -165,6 +165,8 @@ model Organization {
   lateFeeRules  LateFeeRule[]
   settlements   Settlement[]
   notifications Notification[]
+  preferences   NotificationPreference[]
+  templates     CommunicationTemplate[]
   attachments   PropertyAttachment[]
 }
 
@@ -969,6 +971,36 @@ model Notification {
 
   @@index([orgId])
   @@index([userId])
+}
+
+model NotificationPreference {
+  id      String              @id @default(cuid())
+  orgId   String
+  userId  String
+  channel NotificationChannel
+  enabled Boolean             @default(true)
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId, channel])
+  @@index([orgId])
+  @@index([userId])
+}
+
+model CommunicationTemplate {
+  id        String   @id @default(cuid())
+  orgId     String?
+  key       String
+  locale    String
+  subject   String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, key, locale])
+  @@index([key, locale])
 }
 
 model AuditEvent {

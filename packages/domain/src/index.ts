@@ -103,3 +103,5 @@ export {
 export { validateAccount, validateCategoryName, validateLedgerTransaction } from "./ledger";
 export type { AccountInput, LedgerTransactionInput } from "./ledger";
 export type { MaintenanceCase, MaintenanceSla } from "./reporting";
+export { renderTemplate, validateLocale, validateTemplate } from "./comms";
+export type { TemplateDefinition } from "./comms";
