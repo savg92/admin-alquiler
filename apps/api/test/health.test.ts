@@ -48,6 +48,16 @@ describe("WS-12 reliability endpoints", () => {
     expect("/ready" in body.paths).toBe(true);
     expect("/api/v1/queues" in body.paths).toBe(true);
   });
+  test("the public ingress routes the root probes to the API, not the SPA", async () => {
+    const caddyfile = await Bun.file(
+      new URL("../../../infrastructure/caddy/Caddyfile", import.meta.url).pathname,
+    ).text();
+    for (const probe of ["/health", "/ready", "/api/*"]) {
+      expect(caddyfile).toContain(`handle ${probe} {`);
+    }
+    expect(caddyfile).toContain("reverse_proxy api:3001");
+  });
+
   test("GET /ready reports per-dependency status without 500ing", async () => {
     const response = await fetch(`${baseUrl}/ready`);
     expect(response.status).toBe(200);
