@@ -755,6 +755,49 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return null;
   }
 
+  deposits = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      heldMinor: number;
+      currency: string;
+      deductedMinor: number;
+      returnedMinor: number;
+    }
+  >();
+
+  async createDeposit(contractId: string, heldMinor: number, currency: string) {
+    const row = {
+      id: `deposit-${this.deposits.size + 1}`,
+      contractId,
+      heldMinor,
+      currency,
+      deductedMinor: 0,
+      returnedMinor: 0,
+    };
+    this.deposits.set(row.id, row);
+    return row;
+  }
+
+  async listDeposits(contractId: string) {
+    return [...this.deposits.values()].filter((row) => row.contractId === contractId);
+  }
+
+  async findDeposit(id: string) {
+    return this.deposits.get(id) ?? null;
+  }
+
+  async adjustDeposit(id: string, deductedMinor: number, returnedMinor: number) {
+    const found = this.deposits.get(id);
+    if (!found) {
+      throw new Error("Deposit not found.");
+    }
+    found.deductedMinor = deductedMinor;
+    found.returnedMinor = returnedMinor;
+    return found;
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

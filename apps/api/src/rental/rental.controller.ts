@@ -448,4 +448,53 @@ export class RentalController {
     const utility = typeof query["utility"] === "string" ? query["utility"] : undefined;
     return this.rental.listMeterReadings(unitId, orgIdOf(req), utility);
   }
+
+  @Post("contracts/:id/deposits")
+  @RequirePermission("payment:write")
+  @ApiResponse({ status: 201, description: "Record a held deposit for a contract." })
+  recordDeposit(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { held } = body as { held?: unknown };
+    if (typeof held !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.recordDeposit(orgIdOf(req), actorIdOf(req), id, held);
+  }
+
+  @Get("contracts/:id/deposits")
+  @RequirePermission("payment:read")
+  @ApiResponse({ status: 200, description: "List deposits with remaining balances." })
+  listDeposits(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.rental.listDeposits(id, orgIdOf(req));
+  }
+
+  @Post("deposits/:id/deduct")
+  @RequirePermission("payment:write")
+  @ApiResponse({ status: 200, description: "Deduct from a held deposit." })
+  deductDeposit(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { amount } = body as { amount?: unknown };
+    if (typeof amount !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.moveDeposit(orgIdOf(req), actorIdOf(req), id, "deduct", amount);
+  }
+
+  @Post("deposits/:id/return")
+  @RequirePermission("payment:write")
+  @ApiResponse({ status: 200, description: "Return part of a held deposit." })
+  returnDeposit(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { amount } = body as { amount?: unknown };
+    if (typeof amount !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.moveDeposit(orgIdOf(req), actorIdOf(req), id, "return", amount);
+  }
 }

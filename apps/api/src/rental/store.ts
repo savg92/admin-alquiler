@@ -104,6 +104,15 @@ export interface MeterReadingInput {
   photoRef?: string | null;
 }
 
+export interface DepositRow {
+  id: string;
+  contractId: string;
+  heldMinor: number;
+  currency: string;
+  deductedMinor: number;
+  returnedMinor: number;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -177,5 +186,9 @@ export interface RentalStore {
   createMeterReading(unitId: string, input: MeterReadingInput): Promise<MeterReadingRow>;
   listMeterReadings(unitId: string, utility?: string): Promise<MeterReadingRow[]>;
   findMeterReading(id: string): Promise<(MeterReadingRow & { propertyId: string }) | null>;
+  createDeposit(contractId: string, heldMinor: number, currency: string): Promise<DepositRow>;
+  listDeposits(contractId: string): Promise<DepositRow[]>;
+  findDeposit(id: string, orgId: string): Promise<(DepositRow & { contractId: string }) | null>;
+  adjustDeposit(id: string, deductedMinor: number, returnedMinor: number): Promise<DepositRow>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

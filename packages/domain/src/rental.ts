@@ -326,3 +326,22 @@ export function consumptionBetween(previousValue: number, nextValue: number): nu
   }
   return delta;
 }
+
+export interface DepositLedger {
+  heldMinor: number;
+  deductedMinor: number;
+  returnedMinor: number;
+}
+
+export function depositRemaining(ledger: DepositLedger): number {
+  return ledger.heldMinor - ledger.deductedMinor - ledger.returnedMinor;
+}
+
+export function validateDepositMovement(ledger: DepositLedger, amountMinor: number): void {
+  if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+    throw new Error("Amount must be a positive integer of minor units.");
+  }
+  if (amountMinor > depositRemaining(ledger)) {
+    throw new Error("Amount exceeds the remaining deposit balance.");
+  }
+}

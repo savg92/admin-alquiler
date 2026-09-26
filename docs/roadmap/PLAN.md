@@ -84,7 +84,7 @@ E2E gate is green.
 - [x] Charges (rent, utilities, PH cuotas + fines, adjustments)
 - [x] Utility meter readings → charges (value, date, photo; anomaly flags)
 - [x] Payments + receipts/proofs + allocations
-- [ ] Deposits (held/deducted/returned; ledger reconciles)
+- [x] Deposits (held/deducted/returned; ledger reconciles)
 - [ ] Aging report (current, 1–30, 31–60, 61–90, 90+)
 - [ ] Late-fee evaluation (configurable rule; Colombia national default)
 - [ ] Dunning events (3/7/15/30 days; in-app + email; channel-neutral templates)

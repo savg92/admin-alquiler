@@ -7,6 +7,7 @@ import type {
   CodeudorRow,
   ContractInput,
   ContractRow,
+  DepositRow,
   MeterReadingInput,
   MeterReadingRow,
   RentalStore,
@@ -560,6 +561,75 @@ export class PrismaRentalStore implements RentalStore {
       photoRef: row.photoRef,
       anomaly: row.anomaly,
       propertyId: row.unit.propertyId,
+    };
+  }
+
+  async createDeposit(
+    contractId: string,
+    heldMinor: number,
+    currency: string,
+  ): Promise<DepositRow> {
+    const created = await prisma.deposit.create({
+      data: { contractId, held: heldMinor / 100, currency },
+    });
+    return {
+      id: created.id,
+      contractId: created.contractId,
+      heldMinor: toMinor(created.held),
+      currency: created.currency,
+      deductedMinor: toMinor(created.deducted),
+      returnedMinor: toMinor(created.returned),
+    };
+  }
+
+  async listDeposits(contractId: string): Promise<DepositRow[]> {
+    const rows = await prisma.deposit.findMany({
+      where: { contractId },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      contractId: row.contractId,
+      heldMinor: toMinor(row.held),
+      currency: row.currency,
+      deductedMinor: toMinor(row.deducted),
+      returnedMinor: toMinor(row.returned),
+    }));
+  }
+
+  async findDeposit(id: string, orgId: string) {
+    const row = await prisma.deposit.findFirst({
+      where: { id, contract: { orgId } },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      contractId: row.contractId,
+      heldMinor: toMinor(row.held),
+      currency: row.currency,
+      deductedMinor: toMinor(row.deducted),
+      returnedMinor: toMinor(row.returned),
+    };
+  }
+
+  async adjustDeposit(
+    id: string,
+    deductedMinor: number,
+    returnedMinor: number,
+  ): Promise<DepositRow> {
+    const updated = await prisma.deposit.update({
+      where: { id },
+      data: { deducted: deductedMinor / 100, returned: returnedMinor / 100 },
+    });
+    return {
+      id: updated.id,
+      contractId: updated.contractId,
+      heldMinor: toMinor(updated.held),
+      currency: updated.currency,
+      deductedMinor: toMinor(updated.deducted),
+      returnedMinor: toMinor(updated.returned),
     };
   }
 

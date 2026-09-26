@@ -403,6 +403,49 @@ class FakeRentalStore implements RentalStore {
     return { ...row, propertyId: unit.propertyId };
   }
 
+  deposits = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      heldMinor: number;
+      currency: string;
+      deductedMinor: number;
+      returnedMinor: number;
+    }
+  >();
+
+  async createDeposit(contractId: string, heldMinor: number, currency: string) {
+    const row = {
+      id: `deposit-${this.deposits.size + 1}`,
+      contractId,
+      heldMinor,
+      currency,
+      deductedMinor: 0,
+      returnedMinor: 0,
+    };
+    this.deposits.set(row.id, row);
+    return row;
+  }
+
+  async listDeposits(contractId: string) {
+    return [...this.deposits.values()].filter((row) => row.contractId === contractId);
+  }
+
+  async findDeposit(id: string) {
+    return this.deposits.get(id) ?? null;
+  }
+
+  async adjustDeposit(id: string, deductedMinor: number, returnedMinor: number) {
+    const found = this.deposits.get(id);
+    if (!found) {
+      throw new Error("Deposit not found.");
+    }
+    found.deductedMinor = deductedMinor;
+    found.returnedMinor = returnedMinor;
+    return found;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -840,5 +883,62 @@ describe("rental core", () => {
     expect(result.charge.type).toBe("UTILITY");
     expect(result.charge.amountMinor).toBe(95000000);
     expect(rentalStore.audits).toContain("meter.reading_recorded");
+  });
+
+  test("deposits reconcile held, deducted and returned amounts", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-DEP",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    const held = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/deposits`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ held: 1800000 }),
+      })
+    ).json()) as { id: string; heldMinor: number; remainingMinor: number };
+    expect(held.heldMinor).toBe(180000000);
+    expect(held.remainingMinor).toBe(180000000);
+    const deducted = (await (
+      await fetch(`${baseUrl}/api/v1/deposits/${held.id}/deduct`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ amount: 300000 }),
+      })
+    ).json()) as { deductedMinor: number; remainingMinor: number };
+    expect(deducted.deductedMinor).toBe(30000000);
+    expect(deducted.remainingMinor).toBe(150000000);
+    const overdraw = await fetch(`${baseUrl}/api/v1/deposits/${held.id}/return`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ amount: 2000000 }),
+    });
+    expect(overdraw.status).toBe(400);
+    const returned = (await (
+      await fetch(`${baseUrl}/api/v1/deposits/${held.id}/return`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ amount: 1500000 }),
+      })
+    ).json()) as { returnedMinor: number; remainingMinor: number };
+    expect(returned.returnedMinor).toBe(150000000);
+    expect(returned.remainingMinor).toBe(0);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/deposits`, { headers: headers() })
+    ).json()) as { remainingMinor: number }[];
+    expect(listed[0]?.remainingMinor).toBe(0);
+    expect(rentalStore.audits).toContain("deposit.recorded");
+    expect(rentalStore.audits).toContain("deposit.deducted");
+    expect(rentalStore.audits).toContain("deposit.returned");
   });
 });

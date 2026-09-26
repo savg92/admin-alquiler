@@ -12,12 +12,14 @@ import {
   buildRentSchedule,
   chargePaymentStatus,
   consumptionBetween,
+  depositRemaining,
   detectReadingAnomaly,
   periodDueDate,
   quoteIndemnity,
   renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
+  validateDepositMovement,
   validateIndexValue,
   validateMeterReading,
   validateRenewalTerms,
@@ -635,5 +637,63 @@ export class RentalService {
       }),
     );
     return { charge, consumption };
+  }
+
+  async recordDeposit(orgId: string, actorId: string, contractId: string, held: number) {
+    const contract = await this.getContract(contractId, orgId);
+    const heldMinor = toMinor(held);
+    const created = await this.store.createDeposit(contractId, heldMinor, contract.currency);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "deposit.recorded",
+        entityType: "Deposit",
+        entityId: created.id,
+        metadata: { contractId, heldMinor },
+      }),
+    );
+    return { ...created, remainingMinor: depositRemaining(created) };
+  }
+
+  async listDeposits(contractId: string, orgId: string) {
+    await this.getContract(contractId, orgId);
+    const rows = await this.store.listDeposits(contractId);
+    return rows.map((row) => ({ ...row, remainingMinor: depositRemaining(row) }));
+  }
+
+  async moveDeposit(
+    orgId: string,
+    actorId: string,
+    depositId: string,
+    kind: "deduct" | "return",
+    amount: number,
+  ) {
+    const found = await this.store.findDeposit(depositId, orgId);
+    if (!found) {
+      throw new NotFoundException("Deposit not found.");
+    }
+    const amountMinor = toMinor(amount);
+    try {
+      validateDepositMovement(found, amountMinor);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid movement.");
+    }
+    const updated = await this.store.adjustDeposit(
+      depositId,
+      kind === "deduct" ? found.deductedMinor + amountMinor : found.deductedMinor,
+      kind === "return" ? found.returnedMinor + amountMinor : found.returnedMinor,
+    );
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: kind === "deduct" ? "deposit.deducted" : "deposit.returned",
+        entityType: "Deposit",
+        entityId: depositId,
+        metadata: { amountMinor },
+      }),
+    );
+    return { ...updated, remainingMinor: depositRemaining(updated) };
   }
 }
