@@ -161,6 +161,7 @@ model Organization {
   suppliers     Supplier[]
   documents     Document[]
   auditEvents   AuditEvent[]
+  aiSuggestions AISuggestion[]
   outboxEvents  OutboxEvent[]
   lateFeeRules  LateFeeRule[]
   settlements   Settlement[]
@@ -182,6 +183,9 @@ model User {
   memberships Membership[]
   sessions    Session[]
   auditEvents AuditEvent[] @relation("AuditActor")
+
+  suggestions     AISuggestion[] @relation("SuggestionActor")
+  decidedSuggestions AISuggestion[] @relation("SuggestionDecider")
 }
 
 model Role {
@@ -837,6 +841,29 @@ model AIDecisionObservation {
 
   @@index([modelId, questionType])
   @@index([createdAt])
+}
+
+model AISuggestion {
+  id                   String   @id @default(cuid())
+  orgId                String
+  actorId              String
+  feature              String
+  status               String   @default("PENDING")
+  payload              Json
+  confidence           Float?
+  requiresConfirmation Boolean  @default(true)
+  sourceRuntime        String?
+  sourceModel          String?
+  decidedAt            DateTime?
+  decidedBy            String?
+  createdAt            DateTime @default(now())
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  actor  User         @relation("SuggestionActor", fields: [actorId], references: [id])
+  decider User?       @relation("SuggestionDecider", fields: [decidedBy], references: [id])
+
+  @@index([orgId, feature])
+  @@index([orgId, status])
 }
 
 model Supplier {

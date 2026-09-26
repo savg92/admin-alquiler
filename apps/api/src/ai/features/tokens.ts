@@ -1,0 +1,1 @@
+export const AI_SUGGESTION_STORE = Symbol("AI_SUGGESTION_STORE");
