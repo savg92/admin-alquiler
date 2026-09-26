@@ -8,6 +8,7 @@ import {
   minimizeFields,
   privacyLevelFor,
   redactPersonal,
+  requiresHumanConfirmation,
   DECIDE_THRESHOLDS,
   type DataClass,
   type DecideResult,
@@ -32,6 +33,17 @@ interface TokenUsage {
 const EMPTY_USAGE: TokenUsage = { promptTokens: null, completionTokens: null };
 
 const PRIVACY_LEVELS: readonly string[] = ["local-only", "local-preferred", "provider-allowed"];
+
+/**
+ * The business action each question type is a suggestion for. A proof-match suggests a payment
+ * match, so it inherits that action's confirmation rule; plain triage advances no record on its own.
+ */
+const DECIDED_ACTION: Record<QuestionType, string | undefined> = {
+  triage: undefined,
+  "proof-match": "payment.post",
+  dunning: "dunning.escalate",
+  generic: undefined,
+};
 
 function isPrivacyLevel(value: string): value is PrivacyLevel {
   return PRIVACY_LEVELS.includes(value);
@@ -511,13 +523,34 @@ export class AiService {
       mode?: ExecutionMode;
       temperature?: number;
     },
-  ): Promise<DecideResult & { model: string; runtime: RuntimeKind; escalated: boolean }> {
+  ): Promise<
+    DecideResult & {
+      model: string;
+      runtime: RuntimeKind;
+      escalated: boolean;
+      requiresConfirmation: boolean;
+    }
+  > {
     const started = Date.now();
     const config = this.config();
     const finish = async (
       result: DecideResult & { model: string; runtime: RuntimeKind },
       success: boolean,
-    ): Promise<DecideResult & { model: string; runtime: RuntimeKind; escalated: boolean }> => {
+    ): Promise<
+      DecideResult & {
+        model: string;
+        runtime: RuntimeKind;
+        escalated: boolean;
+        requiresConfirmation: boolean;
+      }
+    > => {
+      const action = DECIDED_ACTION[input.questionType];
+      const confirmation = requiresHumanConfirmation({
+        feature: input.feature,
+        dataClasses: input.dataClasses,
+        escalated: result.escalated,
+        ...(action === undefined ? {} : { action }),
+      });
       await this.auditCall(
         orgId,
         actorId,
@@ -534,7 +567,7 @@ export class AiService {
       if (result.escalated) {
         this.metrics.recordEscalation();
       }
-      return result;
+      return { ...result, requiresConfirmation: confirmation.requiresConfirmation };
     };
     if (!config.enabled) {
       return finish(

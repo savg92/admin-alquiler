@@ -550,6 +550,62 @@ describe("§1 decide with calibrated confidence", () => {
   });
 });
 
+describe("§9 a decide result never applies itself", () => {
+  test("a confident triage on public data needs no confirmation", async () => {
+    const body = (await (
+      await post("decide", {
+        feature: "maintenance-triage",
+        question: "¿Urgente?",
+        questionType: "triage",
+        dataClasses: ["PUBLIC"],
+      })
+    ).json()) as { escalated: boolean; requiresConfirmation: boolean };
+    expect(body.escalated).toBe(false);
+    expect(body.requiresConfirmation).toBe(false);
+  });
+
+  test("a proof-match suggestion always waits for a human to post the payment", async () => {
+    const body = (await (
+      await post("decide", {
+        feature: "proof-match",
+        question: "¿Este comprobante corresponde al recibo?",
+        questionType: "proof-match",
+        dataClasses: ["PUBLIC"],
+      })
+    ).json()) as { escalated: boolean; requiresConfirmation: boolean };
+    expect(body.escalated).toBe(false);
+    expect(body.requiresConfirmation).toBe(true);
+  });
+
+  test("triage on financial data requires confirmation", async () => {
+    const body = (await (
+      await post("decide", {
+        feature: "arrears-triage",
+        question: "¿Escalar?",
+        questionType: "triage",
+        dataClasses: ["FINANCIAL"],
+      })
+    ).json()) as { requiresConfirmation: boolean };
+    expect(body.requiresConfirmation).toBe(true);
+  });
+
+  test("a disabled gateway never returns a usable decision", async () => {
+    process.env.AI_ENABLED = "false";
+    const body = (await (
+      await post("decide", {
+        feature: "maintenance-triage",
+        question: "¿Urgente?",
+        questionType: "triage",
+        dataClasses: ["PUBLIC"],
+      })
+    ).json()) as { kind: string; escalated: boolean; requiresConfirmation: boolean };
+    expect(body.kind).toBe("none");
+    expect(body.escalated).toBe(true);
+    expect(body.requiresConfirmation).toBe(true);
+    process.env.AI_ENABLED = "true";
+  });
+});
+
 describe("§8 privacy policy on the gateway", () => {
   test("financial data never reaches a provider even when provider mode is requested", async () => {
     process.env.AI_EXTERNAL_PROVIDER = "openai-compatible";
