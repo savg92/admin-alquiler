@@ -1216,4 +1216,33 @@ describe("rental core", () => {
     expect(listed).toHaveLength(2);
     expect(rentalStore.audits).toContain("dunning.sent");
   });
+
+  test("ad-hoc charges cover PH cuotas, fines and adjustments but not rent", async () => {
+    const contracts = (await (
+      await fetch(`${baseUrl}/api/v1/contracts`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const contractId = contracts[0]?.id ?? "";
+    const fine = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/charges`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        type: "FINE",
+        description: "Multa por ruido",
+        amount: 200000,
+        period: "2026-04",
+      }),
+    });
+    expect(fine.status).toBe(201);
+    const rent = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/charges`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        type: "RENT",
+        description: "Canon",
+        amount: 1800000,
+        period: "2026-04",
+      }),
+    });
+    expect(rent.status).toBe(400);
+  });
 });

@@ -123,6 +123,35 @@ export class RentalController {
     );
   }
 
+  @Post("contracts/:id/charges")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Ad-hoc charge (PH cuotas, fines, adjustments)." })
+  createAdHocCharge(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { type, description, amount, period } = body as {
+      type?: unknown;
+      description?: unknown;
+      amount?: unknown;
+      period?: unknown;
+    };
+    if (
+      typeof type !== "string" ||
+      typeof description !== "string" ||
+      typeof amount !== "number" ||
+      typeof period !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.createAdHocCharge(orgIdOf(req), actorIdOf(req), id, {
+      type,
+      description,
+      amount,
+      period,
+    });
+  }
+
   @Post("contracts/:id/charges:generate")
   @RequirePermission("contract:write")
   @ApiResponse({

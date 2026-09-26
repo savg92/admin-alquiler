@@ -141,4 +141,86 @@ export class GovernanceController {
   ) {
     return this.governance.decisionResult(actId, decisionId, orgIdOf(req));
   }
+
+  @Post("owner-authorizations/evaluate")
+  @RequirePermission("property:read")
+  @ApiResponse({ status: 201, description: "Evaluate an owner authorization rule." })
+  evaluateAuthorization(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { propertyId, mode, percentage, approvals } = body as Record<string, unknown>;
+    if (typeof propertyId !== "string" || typeof mode !== "string" || !Array.isArray(approvals)) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (percentage !== undefined && typeof percentage !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.governance.evaluateOwnerAuthorization(
+      orgIdOf(req),
+      propertyId,
+      percentage === undefined
+        ? { mode, approvals: approvals as string[] }
+        : { mode, percentage, approvals: approvals as string[] },
+    );
+  }
+
+  @Post("ph-cuotas")
+  @RequirePermission("property:write")
+  @ApiResponse({ status: 201, description: "PH cuota (property-flag gated)." })
+  createPhCuota(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { propertyId, type, amount, currency, dueDate, assemblyActId } = body as Record<
+      string,
+      unknown
+    >;
+    if (
+      typeof propertyId !== "string" ||
+      typeof type !== "string" ||
+      typeof amount !== "number" ||
+      typeof dueDate !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (currency !== undefined && typeof currency !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (assemblyActId !== undefined && typeof assemblyActId !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.governance.createPhCuota(orgIdOf(req), actorIdOf(req), {
+      propertyId,
+      type,
+      amount,
+      dueDate,
+      ...(typeof currency === "string" ? { currency } : {}),
+      ...(typeof assemblyActId === "string" ? { assemblyActId } : {}),
+    });
+  }
+
+  @Get("ph-cuotas")
+  @RequirePermission("property:read")
+  @ApiResponse({ status: 200, description: "PH cuotas per property." })
+  listPhCuotas(@Req() req: ActorRequest, @Query("propertyId") propertyId?: string) {
+    if (!propertyId) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.governance.listPhCuotas(propertyId, orgIdOf(req));
+  }
+
+  @Post("ph-cuotas/:id/bill")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Bill a PH cuota as a contract charge." })
+  billPhCuota(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { contractId, period } = body as Record<string, unknown>;
+    if (typeof contractId !== "string" || typeof period !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.governance.billPhCuota(orgIdOf(req), actorIdOf(req), id, { contractId, period });
+  }
 }

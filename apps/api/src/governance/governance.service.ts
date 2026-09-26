@@ -2,15 +2,21 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import {
   buildAuditEvent,
   computeQuorum,
+  evaluateApprovalRule,
   evaluateDecision,
+  type ApprovalRuleMode,
   type AssemblyMajority,
 } from "@admin-alquiler/domain";
 import { GOVERNANCE_STORE } from "./tokens";
 import type { GovernanceStore } from "./store";
+import { RentalService } from "../rental/rental.service";
 
 @Injectable()
 export class GovernanceService {
-  constructor(@Inject(GOVERNANCE_STORE) private readonly store: GovernanceStore) {}
+  constructor(
+    @Inject(GOVERNANCE_STORE) private readonly store: GovernanceStore,
+    private readonly rental: RentalService,
+  ) {}
 
   async createAssemblyAct(
     orgId: string,
@@ -187,5 +193,140 @@ export class GovernanceService {
       presentPct,
     );
     return { decision, votes, totalShare, presentPct, ...outcome };
+  }
+
+  async evaluateOwnerAuthorization(
+    orgId: string,
+    propertyId: string,
+    input: { mode: string; percentage?: number; approvals: string[] },
+  ) {
+    const property = await this.store.findProperty(propertyId, orgId);
+    if (!property) {
+      throw new NotFoundException("Property not found.");
+    }
+    const validModes = ["one", "quorum", "percentage", "all"];
+    if (!validModes.includes(input.mode)) {
+      throw new BadRequestException('mode must be one of "one", "quorum", "percentage", "all".');
+    }
+    const shares = await this.store.ownershipShares(propertyId);
+    const totalShare = shares.reduce((total, row) => total + row.sharePct, 0);
+    const approvedShare = shares
+      .filter((row) => input.approvals.includes(row.ownerId))
+      .reduce((total, row) => total + row.sharePct, 0);
+    let approved: boolean;
+    try {
+      approved = evaluateApprovalRule(
+        input.mode as ApprovalRuleMode,
+        approvedShare,
+        totalShare,
+        ...(input.percentage === undefined ? [] : [input.percentage]),
+      );
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid rule.");
+    }
+    return { propertyId, mode: input.mode, approvedShare, totalShare, approved };
+  }
+
+  async createPhCuota(
+    orgId: string,
+    actorId: string,
+    input: {
+      propertyId: string;
+      type: string;
+      amount: number;
+      currency?: string;
+      dueDate: string;
+      assemblyActId?: string;
+    },
+  ) {
+    const property = await this.store.findProperty(input.propertyId, orgId);
+    if (!property) {
+      throw new NotFoundException("Property not found.");
+    }
+    if (!property.phEnabled) {
+      throw new BadRequestException("PH cuotas require a PH-enabled property.");
+    }
+    if (input.type !== "ORDINARY" && input.type !== "EXTRAORDINARY") {
+      throw new BadRequestException('type must be "ORDINARY" or "EXTRAORDINARY".');
+    }
+    if (typeof input.amount !== "number" || !(input.amount > 0)) {
+      throw new BadRequestException("amount must be a positive number.");
+    }
+    const currency = (input.currency ?? "COP").toUpperCase();
+    if (currency.length !== 3) {
+      throw new BadRequestException("currency must be an ISO-4217 code.");
+    }
+    const dueDate = new Date(input.dueDate);
+    if (Number.isNaN(dueDate.getTime())) {
+      throw new BadRequestException('Invalid date "dueDate".');
+    }
+    let assemblyActId: string | null = null;
+    if (input.assemblyActId !== undefined) {
+      const act = await this.store.findAssemblyAct(input.assemblyActId);
+      if (!act || act.orgId !== orgId || act.propertyId !== input.propertyId) {
+        throw new NotFoundException("Assembly act not found for this property.");
+      }
+      assemblyActId = act.id;
+    }
+    const created = await this.store.createAdminFee(input.propertyId, {
+      type: input.type,
+      amountMinor: Math.round(input.amount * 100),
+      currency,
+      dueDate,
+      assemblyActId,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "ph_cuota.created",
+        entityType: "AdminFee",
+        entityId: created.id,
+        metadata: { propertyId: input.propertyId, type: input.type },
+      }),
+    );
+    return created;
+  }
+
+  async listPhCuotas(propertyId: string, orgId: string) {
+    const property = await this.store.findProperty(propertyId, orgId);
+    if (!property) {
+      throw new NotFoundException("Property not found.");
+    }
+    return this.store.listAdminFees(propertyId);
+  }
+
+  async billPhCuota(
+    orgId: string,
+    actorId: string,
+    feeId: string,
+    input: { contractId: string; period: string },
+  ) {
+    const fee = await this.store.findAdminFee(feeId, orgId);
+    if (!fee) {
+      throw new NotFoundException("PH cuota not found.");
+    }
+    const contract = await this.rental.getContract(input.contractId, orgId);
+    if (contract.propertyId !== fee.propertyId) {
+      throw new BadRequestException("Contract does not belong to the cuota property.");
+    }
+    const chargeType = fee.type === "ORDINARY" ? "PH_ORDINARY" : "PH_EXTRAORDINARY";
+    const { charge } = await this.rental.createAdHocCharge(orgId, actorId, contract.id, {
+      type: chargeType,
+      description: `Cuota PH ${fee.type === "ORDINARY" ? "ordinaria" : "extraordinaria"} ${input.period}`,
+      amount: fee.amountMinor / 100,
+      period: input.period,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "ph_cuota.billed",
+        entityType: "AdminFee",
+        entityId: fee.id,
+        metadata: { chargeId: charge.id, period: input.period },
+      }),
+    );
+    return { fee, charge };
   }
 }

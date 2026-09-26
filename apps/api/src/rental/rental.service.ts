@@ -183,6 +183,59 @@ export class RentalService {
     return charges;
   }
 
+  private static readonly AD_HOC_CHARGE_TYPES = [
+    "PH_ORDINARY",
+    "PH_EXTRAORDINARY",
+    "FINE",
+    "ADJUSTMENT",
+    "UTILITY",
+  ];
+
+  async createAdHocCharge(
+    orgId: string,
+    actorId: string,
+    contractId: string,
+    input: { type: string; description: string; amount: number; period: string },
+  ) {
+    const contract = await this.getContract(contractId, orgId);
+    if (!RentalService.AD_HOC_CHARGE_TYPES.includes(input.type)) {
+      throw new BadRequestException(
+        `Invalid type. Expected one of: ${RentalService.AD_HOC_CHARGE_TYPES.join(", ")}.`,
+      );
+    }
+    if (input.description.trim().length === 0 || input.description.length > 500) {
+      throw new BadRequestException("description must be 1-500 characters.");
+    }
+    const amountMinor = toMinor(input.amount);
+    let dueDate: Date;
+    try {
+      dueDate = periodDueDate(input.period);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid period.");
+    }
+    const charge = await this.store.createCharge({
+      orgId,
+      contractId,
+      type: input.type,
+      description: input.description.trim(),
+      amountMinor,
+      currency: contract.currency,
+      dueDate,
+      period: input.period,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "charge.generated",
+        entityType: "Charge",
+        entityId: charge.id,
+        metadata: { period: input.period, type: input.type },
+      }),
+    );
+    return { charge, created: true };
+  }
+
   async recordPayment(orgId: string, actorId: string, contractId: string, input: PaymentInput) {
     const contract = await this.getContract(contractId, orgId);
     const amountMinor = toMinor(input.amount);

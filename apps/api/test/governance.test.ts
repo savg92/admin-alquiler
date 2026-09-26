@@ -14,6 +14,8 @@ import { GovernanceController } from "../src/governance/governance.controller";
 import { GovernanceService } from "../src/governance/governance.service";
 import type { GovernanceStore } from "../src/governance/store";
 import { GOVERNANCE_STORE } from "../src/governance/tokens";
+import { NotFoundException } from "@nestjs/common";
+import { RentalService } from "../src/rental/rental.service";
 import { IdempotencyMiddleware } from "../src/idempotency/middleware";
 import { RequestIdMiddleware } from "../src/request-id.middleware";
 
@@ -63,6 +65,7 @@ class FakeAuthStore implements AuthStore {
 class FakeGovernanceStore implements GovernanceStore {
   properties = new Map<string, { id: string; orgId: string; phEnabled: boolean }>([
     ["prop-1", { id: "prop-1", orgId: "org-a", phEnabled: true }],
+    ["prop-2", { id: "prop-2", orgId: "org-a", phEnabled: false }],
   ]);
   shares = new Map<string, { ownerId: string; sharePct: number }[]>([
     [
@@ -169,6 +172,47 @@ class FakeGovernanceStore implements GovernanceStore {
     return this.votes.filter((row) => row.decisionId === decisionId);
   }
 
+  fees: {
+    id: string;
+    propertyId: string;
+    type: "ORDINARY" | "EXTRAORDINARY";
+    amountMinor: number;
+    currency: string;
+    dueDate: Date;
+    assemblyActId: string | null;
+  }[] = [];
+
+  async createAdminFee(
+    propertyId: string,
+    data: {
+      type: "ORDINARY" | "EXTRAORDINARY";
+      amountMinor: number;
+      currency: string;
+      dueDate: Date;
+      assemblyActId: string | null;
+    },
+  ) {
+    const row = { id: `fee-${this.fees.length + 1}`, propertyId, ...data };
+    this.fees.push(row);
+    return row;
+  }
+
+  async listAdminFees(propertyId: string) {
+    return this.fees.filter((row) => row.propertyId === propertyId);
+  }
+
+  async findAdminFee(id: string, orgId: string) {
+    const found = this.fees.find((row) => row.id === id);
+    if (!found) {
+      return null;
+    }
+    const property = this.properties.get(found.propertyId);
+    if (!property || property.orgId !== orgId) {
+      return null;
+    }
+    return { ...found, orgId };
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -187,6 +231,29 @@ const governanceStore = new FakeGovernanceStore();
     { provide: AUTH_STORE, useValue: authStore },
     { provide: AUTH_CONFIG, useValue: { jwtSecret: TEST_SECRET } },
     { provide: GOVERNANCE_STORE, useValue: governanceStore },
+    {
+      provide: RentalService,
+      useValue: {
+        getContract: async (id: string) => {
+          if (id !== "contract-1") {
+            throw new NotFoundException("Contract not found.");
+          }
+          return { id: "contract-1", propertyId: "prop-1" };
+        },
+        createAdHocCharge: async (
+          _orgId: string,
+          _actorId: string,
+          contractId: string,
+          input: { type: string; period: string },
+        ) => ({
+          charge: {
+            id: `charge-${contractId}-${input.period}-${input.type}`,
+            type: input.type,
+            period: input.period,
+          },
+        }),
+      },
+    },
   ],
 })
 class GovernanceTestModule implements NestModule {
@@ -215,7 +282,7 @@ beforeAll(async () => {
       orgId: "org-a",
       status: "ACTIVE",
       roleName: "admin",
-      permissions: ["property:read", "property:write"],
+      permissions: ["property:read", "property:write", "contract:read", "contract:write"],
     },
   ]);
   app = await NestFactory.create(GovernanceTestModule, { logger: false });
@@ -325,5 +392,86 @@ describe("assembly acts and ownership-weighted voting", () => {
     );
     expect(overweight.status).toBe(400);
     expect(governanceStore.audits).toContain("assembly.vote_recorded");
+  });
+});
+
+describe("owner authorization and PH cuotas", () => {
+  test("configurable rules evaluate ownership shares", async () => {
+    const evaluate = (mode: string, approvals: string[], percentage?: number) =>
+      fetch(`${baseUrl}/api/v1/owner-authorizations/evaluate`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(
+          percentage === undefined
+            ? { propertyId: "prop-1", mode, approvals }
+            : { propertyId: "prop-1", mode, percentage, approvals },
+        ),
+      });
+    const one = (await (await evaluate("one", ["owner-b"])).json()) as {
+      approved: boolean;
+      approvedShare: number;
+    };
+    expect(one.approved).toBe(true);
+    expect(one.approvedShare).toBe(30);
+    const quorumFail = (await (await evaluate("quorum", ["owner-b"])).json()) as {
+      approved: boolean;
+    };
+    expect(quorumFail.approved).toBe(false);
+    const quorumPass = (await (await evaluate("quorum", ["owner-a"])).json()) as {
+      approved: boolean;
+    };
+    expect(quorumPass.approved).toBe(true);
+    const all = (await (await evaluate("all", ["owner-a", "owner-b"])).json()) as {
+      approved: boolean;
+    };
+    expect(all.approved).toBe(true);
+    const pct = (await (await evaluate("percentage", ["owner-b"], 30)).json()) as {
+      approved: boolean;
+    };
+    expect(pct.approved).toBe(true);
+    const badMode = await evaluate("consensus", ["owner-a"]);
+    expect(badMode.status).toBe(400);
+  });
+
+  test("PH cuotas are gated by property flag and billable to charges", async () => {
+    const gated = await fetch(`${baseUrl}/api/v1/ph-cuotas`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-2",
+        type: "ORDINARY",
+        amount: 150000,
+        dueDate: "2026-03-05",
+      }),
+    });
+    expect(gated.status).toBe(400);
+    const cuota = (await (
+      await fetch(`${baseUrl}/api/v1/ph-cuotas`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          type: "ORDINARY",
+          amount: 150000,
+          currency: "COP",
+          dueDate: "2026-03-05",
+        }),
+      })
+    ).json()) as { id: string; amountMinor: number };
+    expect(cuota.amountMinor).toBe(15000000);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/ph-cuotas?propertyId=prop-1`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(listed.map((row) => row.id)).toContain(cuota.id);
+    const billed = (await (
+      await fetch(`${baseUrl}/api/v1/ph-cuotas/${cuota.id}/bill`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ contractId: "contract-1", period: "2026-03" }),
+      })
+    ).json()) as { charge: { type: string } };
+    expect(billed.charge.type).toBe("PH_ORDINARY");
+    expect(governanceStore.audits).toContain("ph_cuota.created");
+    expect(governanceStore.audits).toContain("ph_cuota.billed");
   });
 });

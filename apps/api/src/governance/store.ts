@@ -22,6 +22,16 @@ export interface VoteRow {
   choice: "APPROVE" | "REJECT" | "ABSTAIN";
 }
 
+export interface AdminFeeRow {
+  id: string;
+  propertyId: string;
+  type: "ORDINARY" | "EXTRAORDINARY";
+  amountMinor: number;
+  currency: string;
+  dueDate: Date;
+  assemblyActId: string | null;
+}
+
 export interface OwnershipShareRow {
   ownerId: string;
   sharePct: number;
@@ -59,5 +69,17 @@ export interface GovernanceStore {
     data: { ownerId: string | null; weight: number; choice: "APPROVE" | "REJECT" | "ABSTAIN" },
   ): Promise<VoteRow>;
   listVotes(decisionId: string): Promise<VoteRow[]>;
+  createAdminFee(
+    propertyId: string,
+    data: {
+      type: "ORDINARY" | "EXTRAORDINARY";
+      amountMinor: number;
+      currency: string;
+      dueDate: Date;
+      assemblyActId: string | null;
+    },
+  ): Promise<AdminFeeRow>;
+  listAdminFees(propertyId: string): Promise<AdminFeeRow[]>;
+  findAdminFee(id: string, orgId: string): Promise<(AdminFeeRow & { orgId: string }) | null>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

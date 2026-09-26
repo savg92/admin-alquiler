@@ -1,5 +1,6 @@
 import { prisma } from "@admin-alquiler/database";
 import type {
+  AdminFeeRow,
   AssemblyActRow,
   AuditInput,
   DecisionRow,
@@ -146,6 +147,73 @@ export class PrismaGovernanceStore implements GovernanceStore {
       weight: row.weight.toNumber(),
       choice: row.choice,
     }));
+  }
+
+  async createAdminFee(
+    propertyId: string,
+    data: {
+      type: "ORDINARY" | "EXTRAORDINARY";
+      amountMinor: number;
+      currency: string;
+      dueDate: Date;
+      assemblyActId: string | null;
+    },
+  ): Promise<AdminFeeRow> {
+    const created = await prisma.adminFee.create({
+      data: {
+        propertyId,
+        type: data.type,
+        amount: data.amountMinor / 100,
+        currency: data.currency,
+        dueDate: data.dueDate,
+        assemblyActId: data.assemblyActId,
+      },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      type: created.type,
+      amountMinor: Math.round(created.amount.toNumber() * 100),
+      currency: created.currency,
+      dueDate: created.dueDate,
+      assemblyActId: created.assemblyActId,
+    };
+  }
+
+  async listAdminFees(propertyId: string): Promise<AdminFeeRow[]> {
+    const rows = await prisma.adminFee.findMany({
+      where: { propertyId },
+      orderBy: { dueDate: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      type: row.type,
+      amountMinor: Math.round(row.amount.toNumber() * 100),
+      currency: row.currency,
+      dueDate: row.dueDate,
+      assemblyActId: row.assemblyActId,
+    }));
+  }
+
+  async findAdminFee(id: string, orgId: string): Promise<(AdminFeeRow & { orgId: string }) | null> {
+    const row = await prisma.adminFee.findFirst({
+      where: { id, property: { orgId } },
+      include: { property: { select: { orgId: true } } },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      propertyId: row.propertyId,
+      type: row.type,
+      amountMinor: Math.round(row.amount.toNumber() * 100),
+      currency: row.currency,
+      dueDate: row.dueDate,
+      assemblyActId: row.assemblyActId,
+      orgId: row.property.orgId,
+    };
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {
