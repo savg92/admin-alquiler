@@ -623,6 +623,40 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return found;
   }
 
+  terminations = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      noticeDate: Date;
+      effectiveDate: Date;
+      cause: string;
+      indemnityRef: string | null;
+    }
+  >();
+
+  async getTermination(contractId: string) {
+    return this.terminations.get(contractId) ?? null;
+  }
+
+  async saveTermination(
+    contractId: string,
+    data: { noticeDate: Date; effectiveDate: Date; cause: string; indemnityRef: string | null },
+  ) {
+    const row = { id: `term-${contractId}`, contractId, ...data };
+    this.terminations.set(contractId, row);
+    return row;
+  }
+
+  async markContractTerminated(id: string) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.status = "TERMINATED";
+    return found;
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

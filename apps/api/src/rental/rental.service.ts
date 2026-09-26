@@ -10,10 +10,13 @@ import {
   buildAuditEvent,
   chargePaymentStatus,
   periodDueDate,
+  quoteIndemnity,
   renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
   validateRenewalTerms,
+  validateTermination,
+  type IndemnityRuleId,
 } from "@admin-alquiler/domain";
 import { RENTAL_STORE } from "./tokens";
 import type { ChargeRow, CodeudorInput, ContractRow, RentalStore } from "./store";
@@ -337,5 +340,74 @@ export class RentalService {
       }),
     );
     return updated;
+  }
+
+  async terminateContract(
+    orgId: string,
+    actorId: string,
+    contractId: string,
+    input: { noticeDate: string; effectiveDate: string; cause: string; ruleId?: IndemnityRuleId },
+  ) {
+    const contract = await this.getContract(contractId, orgId);
+    if (contract.status === "TERMINATED") {
+      throw new BadRequestException("Contract is already terminated.");
+    }
+    try {
+      validateTermination(input);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : "Invalid termination.",
+      );
+    }
+    const noticeDate = parseDate(input.noticeDate, "noticeDate");
+    const effectiveDate = parseDate(input.effectiveDate, "effectiveDate");
+    const ruleId: IndemnityRuleId =
+      input.ruleId === "GENERIC_NO_INDEMNITY"
+        ? "GENERIC_NO_INDEMNITY"
+        : "CO_EARLY_TERMINATION_DEFAULT";
+    const monthsRemaining = Math.max(
+      0,
+      (contract.endDate.getFullYear() - effectiveDate.getFullYear()) * 12 +
+        (contract.endDate.getMonth() - effectiveDate.getMonth()),
+    );
+    const quote = quoteIndemnity(ruleId, contract.rentAmountMinor, monthsRemaining);
+    let indemnityRef: string | null = null;
+    if (quote.amountMinor > 0) {
+      const period = `${effectiveDate.getUTCFullYear()}-${String(effectiveDate.getUTCMonth() + 1).padStart(2, "0")}`;
+      const charge = await this.store.createCharge({
+        orgId,
+        contractId,
+        type: "FINE",
+        description: `Indemnización terminación anticipada (${quote.ruleId})`,
+        amountMinor: quote.amountMinor,
+        currency: contract.currency,
+        dueDate: effectiveDate,
+        period: `${period}-indemnity`,
+      });
+      indemnityRef = charge.id;
+    }
+    const termination = await this.store.saveTermination(contractId, {
+      noticeDate,
+      effectiveDate,
+      cause: input.cause.trim(),
+      indemnityRef,
+    });
+    await this.store.markContractTerminated(contractId);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "contract.terminated",
+        entityType: "Contract",
+        entityId: contractId,
+        metadata: { ruleId, indemnityMinor: quote.amountMinor, indemnityRef },
+      }),
+    );
+    return { termination, indemnity: quote, indemnityRef };
+  }
+
+  async getTermination(contractId: string, orgId: string) {
+    await this.getContract(contractId, orgId);
+    return this.store.getTermination(contractId);
   }
 }

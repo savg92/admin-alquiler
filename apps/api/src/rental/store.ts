@@ -70,6 +70,15 @@ export interface CodeudorInput {
   validUntil?: string | null;
 }
 
+export interface TerminationRow {
+  id: string;
+  contractId: string;
+  noticeDate: Date;
+  effectiveDate: Date;
+  cause: string;
+  indemnityRef: string | null;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -123,5 +132,11 @@ export interface RentalStore {
     id: string,
     data: { endDate: Date; rentAmountMinor?: number },
   ): Promise<ContractRow>;
+  getTermination(contractId: string): Promise<TerminationRow | null>;
+  saveTermination(
+    contractId: string,
+    data: { noticeDate: Date; effectiveDate: Date; cause: string; indemnityRef: string | null },
+  ): Promise<TerminationRow>;
+  markContractTerminated(id: string): Promise<ContractRow>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

@@ -169,3 +169,56 @@ export function validateRenewalTerms(input: RenewalTermsInput): void {
     }
   }
 }
+
+export interface TerminationInput {
+  noticeDate: string;
+  effectiveDate: string;
+  cause: string;
+}
+
+export function validateTermination(input: TerminationInput): void {
+  const notice = Date.parse(input.noticeDate);
+  const effective = Date.parse(input.effectiveDate);
+  if (Number.isNaN(notice)) {
+    throw new Error('Invalid date "noticeDate".');
+  }
+  if (Number.isNaN(effective)) {
+    throw new Error('Invalid date "effectiveDate".');
+  }
+  if (effective < notice) {
+    throw new Error("Termination effectiveDate must be on or after noticeDate.");
+  }
+  if (input.cause.trim().length < 3) {
+    throw new Error("Termination cause is required.");
+  }
+}
+
+export type IndemnityRuleId = "CO_EARLY_TERMINATION_DEFAULT" | "GENERIC_NO_INDEMNITY";
+
+export interface IndemnityQuote {
+  ruleId: IndemnityRuleId;
+  amountMinor: number;
+  description: string;
+}
+
+export function quoteIndemnity(
+  ruleId: IndemnityRuleId,
+  rentAmountMinor: number,
+  monthsRemaining: number,
+): IndemnityQuote {
+  if (!Number.isInteger(rentAmountMinor) || rentAmountMinor <= 0) {
+    throw new Error("rentAmountMinor must be a positive integer of minor units.");
+  }
+  if (!Number.isInteger(monthsRemaining) || monthsRemaining < 0) {
+    throw new Error("monthsRemaining must be a non-negative integer.");
+  }
+  if (ruleId === "GENERIC_NO_INDEMNITY") {
+    return { ruleId, amountMinor: 0, description: "No indemnity under generic rule." };
+  }
+  const capped = Math.min(monthsRemaining, 3);
+  return {
+    ruleId,
+    amountMinor: capped * rentAmountMinor,
+    description: `Colombia default: ${capped} canon(es) as indemnity.`,
+  };
+}

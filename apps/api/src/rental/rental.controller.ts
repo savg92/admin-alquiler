@@ -232,4 +232,48 @@ export class RentalController {
       typeof rentAmount === "number" ? { newEndDate, rentAmount } : { newEndDate },
     );
   }
+
+  @Post("contracts/:id/terminate")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Contract terminated with indemnity quote." })
+  terminateContract(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { noticeDate, effectiveDate, cause, ruleId } = body as {
+      noticeDate?: unknown;
+      effectiveDate?: unknown;
+      cause?: unknown;
+      ruleId?: unknown;
+    };
+    if (
+      typeof noticeDate !== "string" ||
+      typeof effectiveDate !== "string" ||
+      typeof cause !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (
+      ruleId !== undefined &&
+      ruleId !== "GENERIC_NO_INDEMNITY" &&
+      ruleId !== "CO_EARLY_TERMINATION_DEFAULT"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.terminateContract(
+      orgIdOf(req),
+      actorIdOf(req),
+      id,
+      ruleId === undefined
+        ? { noticeDate, effectiveDate, cause }
+        : { noticeDate, effectiveDate, cause, ruleId },
+    );
+  }
+
+  @Get("contracts/:id/termination")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Contract termination detail." })
+  getTermination(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.rental.getTermination(id, orgIdOf(req));
+  }
 }

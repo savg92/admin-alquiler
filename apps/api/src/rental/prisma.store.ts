@@ -370,6 +370,42 @@ export class PrismaRentalStore implements RentalStore {
     };
   }
 
+  async getTermination(contractId: string) {
+    const row = await prisma.contractTermination.findUnique({ where: { contractId } });
+    return row;
+  }
+
+  async saveTermination(
+    contractId: string,
+    data: { noticeDate: Date; effectiveDate: Date; cause: string; indemnityRef: string | null },
+  ) {
+    const saved = await prisma.contractTermination.upsert({
+      where: { contractId },
+      create: { contractId, ...data },
+      update: { ...data },
+    });
+    return saved;
+  }
+
+  async markContractTerminated(id: string): Promise<ContractRow> {
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: { status: "TERMINATED" },
+    });
+    return {
+      id: updated.id,
+      orgId: updated.orgId,
+      propertyId: updated.propertyId,
+      tenantId: updated.tenantId,
+      number: updated.number,
+      status: updated.status,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      rentAmountMinor: toMinor(updated.rentAmount),
+      currency: updated.currency,
+    };
+  }
+
   async writeAuditEvent(event: AuditInput): Promise<void> {
     await prisma.auditEvent.create({
       data: {

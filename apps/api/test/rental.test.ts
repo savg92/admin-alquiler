@@ -277,6 +277,40 @@ class FakeRentalStore implements RentalStore {
     return found;
   }
 
+  terminations = new Map<
+    string,
+    {
+      id: string;
+      contractId: string;
+      noticeDate: Date;
+      effectiveDate: Date;
+      cause: string;
+      indemnityRef: string | null;
+    }
+  >();
+
+  async getTermination(contractId: string) {
+    return this.terminations.get(contractId) ?? null;
+  }
+
+  async saveTermination(
+    contractId: string,
+    data: { noticeDate: Date; effectiveDate: Date; cause: string; indemnityRef: string | null },
+  ) {
+    const row = { id: `term-${contractId}`, contractId, ...data };
+    this.terminations.set(contractId, row);
+    return row;
+  }
+
+  async markContractTerminated(id: string) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.status = "TERMINATED";
+    return found;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -547,5 +581,60 @@ describe("rental core", () => {
     expect(detail.endDate.slice(0, 10)).toBe("2028-01-31");
     expect(detail.rentAmountMinor).toBe(190000000);
     expect(rentalStore.audits).toContain("contract.renewed");
+  });
+
+  test("early termination records dates, cause and country-pluggable indemnity", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-TERM",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    const badDates = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/terminate`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        noticeDate: "2026-06-10",
+        effectiveDate: "2026-06-01",
+        cause: "Mutuo acuerdo",
+      }),
+    });
+    expect(badDates.status).toBe(400);
+    const terminated = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/terminate`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        noticeDate: "2026-06-01",
+        effectiveDate: "2026-07-01",
+        cause: "Mutuo acuerdo",
+      }),
+    });
+    expect(terminated.status).toBe(201);
+    const result = (await terminated.json()) as {
+      indemnity: { ruleId: string; amountMinor: number };
+      indemnityRef: string | null;
+    };
+    expect(result.indemnity.ruleId).toBe("CO_EARLY_TERMINATION_DEFAULT");
+    expect(result.indemnity.amountMinor).toBeGreaterThan(0);
+    expect(result.indemnityRef).not.toBeNull();
+    const detail = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/termination`, {
+      headers: headers(),
+    });
+    expect(detail.status).toBe(200);
+    const renewedAfter = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/renew`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ newEndDate: "2028-01-31" }),
+    });
+    expect(renewedAfter.status).toBe(400);
+    expect(rentalStore.audits).toContain("contract.terminated");
   });
 });
