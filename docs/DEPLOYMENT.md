@@ -63,9 +63,13 @@ Use managed services only where their operational value exceeds the cost and loc
 Each drill restores an encrypted backup into an empty test database via
 `scripts/restore-drill.sh` (never production) and records date + result here.
 
+`DATABASE_URL` is optional for the drill and is only used by the production guard; when it is set the
+drill refuses to run against it.
+
 | Date (UTC) | Backup | Result |
 |---|---|---|
 | 2026-09-26 | `admin-alquiler-20260926T050627Z.sql.gz.enc` (ephemeral drill container, postgres:16) | OK — migrations 0001–0004 applied, 60 public tables restored, seeded `Organization(drill-co/COP)` round-tripped, smoke query green |
+| 2026-09-26 | `admin-alquiler-20260926T063017Z.sql.gz.enc` (ephemeral drill container, postgres:16) | OK — migrations 0001–0005 applied, 62 public tables restored (includes `AIModel`, `AIDecisionObservation`), 6 organizations / 2 AI models / 1 settlement / 24 audit events round-tripped. Also verified: artifact is encrypted (`openssl enc` salted), production guard refuses when `TEST_DATABASE_URL` equals `DATABASE_URL`, and a wrong key fails to decrypt. First attempt exposed a bug in `scripts/restore-drill.sh` (see below) |
 
 ## Cloudflare
 
