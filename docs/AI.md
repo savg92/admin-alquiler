@@ -138,6 +138,28 @@ settlements, signatures, contract termination, document approval, permissions, m
 approvals and assembly votes. A suggestion about one of them is allowed; performing one is not.
 `assertResultUsable` throws rather than let an unconfirmed result reach a domain operation.
 
+### Calibration gate (PHASE-2 §11)
+
+A `decide` result may not advance a workflow on confidence alone. Before auto-advance is permitted,
+`evaluateCalibrationGate` requires, per model and question type:
+
+- at least 200 labeled outcomes,
+- those outcomes spanning at least 7 days,
+- both correct and incorrect outcomes present,
+- a mean-confidence margin of at least 0.1 between correct and incorrect answers,
+- a calibrated expected calibration error of at most 0.1.
+
+Until a model satisfies all five, `POST /decide` returns `autoAdvanceAllowed: false` and sets
+`requiresConfirmation: true` — the gate is additive, so forbidden actions, destructive operations,
+sensitive data classes and escalations still stop the pipeline on their own. The response carries
+`calibrationChecks` and a `confirmationReason` naming the failing checks, so an operator can see
+what is still missing. Evidence for one question type never opens another, and an unreadable
+observation store fails closed.
+
+Labeled outcomes are recorded through `POST /observations` and summarized by `GET /calibration`.
+Because the bar needs a week of real es-CO data, a fresh deployment confirms every AI-assisted
+decision by design.
+
 ## Observability
 
 `GET /api/v1/ai/metrics` reports per-call metadata only: feature, runtime, model, provider, privacy
