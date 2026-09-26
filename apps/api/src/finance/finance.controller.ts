@@ -210,4 +210,25 @@ export class FinanceController {
           },
     );
   }
+
+  @Get("statements/monthly")
+  @RequirePermission("finance:read")
+  @ApiResponse({ status: 200, description: "Monthly statement for a YYYY-MM period." })
+  monthlyStatement(@Req() req: ActorRequest, @Query("period") period?: string) {
+    if (!period) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.finance.monthlyStatement(orgIdOf(req), period);
+  }
+
+  @Get("statements/yearly")
+  @RequirePermission("finance:read")
+  @ApiResponse({ status: 200, description: "Yearly statement with monthly buckets." })
+  yearlyStatement(@Req() req: ActorRequest, @Query("year") year?: string) {
+    const parsed = year === undefined ? Number.NaN : Number.parseInt(year, 10);
+    if (!Number.isInteger(parsed)) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.finance.yearlyStatement(orgIdOf(req), parsed);
+  }
 }

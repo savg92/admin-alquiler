@@ -276,4 +276,66 @@ export class FinanceService {
           },
     );
   }
+
+  private periodRange(period: string): { from: Date; to: Date } {
+    if (!/^\d{4}-\d{2}$/.test(period)) {
+      throw new BadRequestException(`Invalid period "${period}". Expected "YYYY-MM".`);
+    }
+    const [year, month] = period.split("-").map(Number) as [number, number];
+    if (month < 1 || month > 12) {
+      throw new BadRequestException(`Invalid period "${period}". Expected "YYYY-MM".`);
+    }
+    return { from: new Date(Date.UTC(year, month - 1, 1)), to: new Date(Date.UTC(year, month, 1)) };
+  }
+
+  private summarize(
+    rows: { amountMinor: number; currency: string; source: string; categoryId: string | null }[],
+  ) {
+    const income: Record<string, number> = {};
+    const expenses: Record<string, number> = {};
+    const bySource: Record<string, number> = {};
+    const byCategory: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.amountMinor >= 0) {
+        income[row.currency] = (income[row.currency] ?? 0) + row.amountMinor;
+      } else {
+        expenses[row.currency] = (expenses[row.currency] ?? 0) + row.amountMinor;
+      }
+      bySource[row.source] = (bySource[row.source] ?? 0) + row.amountMinor;
+      const category = row.categoryId ?? "uncategorized";
+      byCategory[category] = (byCategory[category] ?? 0) + row.amountMinor;
+    }
+    const net: Record<string, number> = {};
+    for (const currency of new Set([...Object.keys(income), ...Object.keys(expenses)])) {
+      net[currency] = (income[currency] ?? 0) + (expenses[currency] ?? 0);
+    }
+    return { income, expenses, net, bySource, byCategory, entries: rows.length };
+  }
+
+  async monthlyStatement(orgId: string, period: string) {
+    const { from, to } = this.periodRange(period);
+    const rows = await this.store.listLedgerTransactions(orgId, { from, to });
+    return { period, ...this.summarize(rows) };
+  }
+
+  async yearlyStatement(orgId: string, year: number) {
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new BadRequestException("year must be an integer between 2000 and 2100.");
+    }
+    const months: Record<string, ReturnType<FinanceService["summarize"]>> = {};
+    const all: {
+      amountMinor: number;
+      currency: string;
+      source: string;
+      categoryId: string | null;
+    }[] = [];
+    for (let month = 1; month <= 12; month += 1) {
+      const period = `${year}-${String(month).padStart(2, "0")}`;
+      const { from, to } = this.periodRange(period);
+      const rows = await this.store.listLedgerTransactions(orgId, { from, to });
+      months[period] = this.summarize(rows);
+      all.push(...rows);
+    }
+    return { year, months, total: this.summarize(all) };
+  }
 }

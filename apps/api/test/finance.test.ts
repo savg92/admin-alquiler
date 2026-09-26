@@ -477,4 +477,35 @@ describe("finance imports", () => {
     expect(filtered).toHaveLength(2);
     expect(financeStore.audits).toContain("transaction.recorded");
   });
+
+  test("monthly and yearly statements aggregate income, expenses and net", async () => {
+    const monthly = (await (
+      await fetch(`${baseUrl}/api/v1/statements/monthly?period=2026-02`, { headers: headers() })
+    ).json()) as {
+      period: string;
+      income: Record<string, number>;
+      expenses: Record<string, number>;
+      net: Record<string, number>;
+      entries: number;
+    };
+    expect(monthly.period).toBe("2026-02");
+    expect(monthly.income["COP"]).toBe(180000050);
+    expect(monthly.expenses["COP"]).toBe(-25000000);
+    expect(monthly.net["COP"]).toBe(155000050);
+    const badPeriod = await fetch(`${baseUrl}/api/v1/statements/monthly?period=febrero`, {
+      headers: headers(),
+    });
+    expect(badPeriod.status).toBe(400);
+    const yearly = (await (
+      await fetch(`${baseUrl}/api/v1/statements/yearly?year=2026`, { headers: headers() })
+    ).json()) as {
+      year: number;
+      months: Record<string, { entries: number }>;
+      total: { net: Record<string, number> };
+    };
+    expect(yearly.year).toBe(2026);
+    expect(yearly.months["2026-02"]?.entries).toBe(2);
+    expect(yearly.months["2026-03"]?.entries).toBe(0);
+    expect(yearly.total.net["COP"]).toBe(155000050);
+  });
 });
