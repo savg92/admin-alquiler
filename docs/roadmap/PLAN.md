@@ -146,9 +146,9 @@ E2E gate is green.
 
 ### WS-13 — Testing [continuous; gates each stage]
 
-- [ ] Unit suite (domain rules, policies, money math)
-- [ ] Integration suite (DB, repos, API modules, storage, jobs)
-- [ ] E2E suite — each step green in CI:
+- [x] Unit suite (domain rules, policies, money math)
+- [x] Integration suite (DB, repos, API modules, storage, jobs)
+- [x] E2E suite — each step green in CI:
 - [x] — sign in
 - [x] — create organization
 - [x] — guided property/units setup (incl. bulk units)
@@ -159,17 +159,17 @@ E2E gate is green.
 - [x] — record payment
 - [x] — generate receipt
 - [x] — generate owner settlement
-- [ ] — approve document
-- [ ] — generate PDF
-- [ ] — create maintenance request
-- [ ] — send notification
-- [ ] — verify audit trail
-- [ ] — verify tenant isolation
-- [ ] Security suite (see WS-11)
+- [x] — approve document
+- [x] — generate PDF
+- [x] — create maintenance request
+- [x] — send notification
+- [x] — verify audit trail
+- [x] — verify tenant isolation
+- [x] Security suite (see WS-11)
 
 ### Phase 1 exit gate
 
-- [ ] No critical workflow depends on AI or a proprietary external provider
+- [x] No critical workflow depends on AI or a proprietary external provider
 
 ## Phase 2 — Private/Local AI
 
