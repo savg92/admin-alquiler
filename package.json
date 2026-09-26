@@ -20,7 +20,7 @@
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test apps/api/test apps/worker/test",
     "test:e2e": "bun test apps/api/e2e",
-    "test:security": "bun test tests/security",
+    "test:security": "bun test apps/api/test/security.* tests/security",
     "check": "bun run lint && bun run typecheck && bun test",
     "prepare": "husky"
   },

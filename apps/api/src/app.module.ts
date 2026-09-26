@@ -14,6 +14,8 @@ import { SettlementsModule } from "./settlements/settlements.module";
 import { IdempotencyMiddleware } from "./idempotency/middleware";
 import { QueuesController } from "./queues.controller";
 import { RequestIdMiddleware } from "./request-id.middleware";
+import { SecurityHeadersMiddleware } from "./security/headers.middleware";
+import { RateLimitMiddleware } from "./security/rate-limit.middleware";
 
 @Module({
   imports: [
@@ -33,6 +35,13 @@ import { RequestIdMiddleware } from "./request-id.middleware";
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestIdMiddleware, IdempotencyMiddleware).forRoutes("*");
+    consumer
+      .apply(
+        RequestIdMiddleware,
+        SecurityHeadersMiddleware,
+        RateLimitMiddleware,
+        IdempotencyMiddleware,
+      )
+      .forRoutes("*");
   }
 }
