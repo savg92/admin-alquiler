@@ -1,5 +1,6 @@
 import { prisma } from "@admin-alquiler/database";
 import type {
+  AttachmentRow,
   CreatePropertyInput,
   OrgDefaults,
   PropertiesStore,
@@ -11,6 +12,30 @@ import type { TenancyPeriod } from "@admin-alquiler/domain";
 
 function toJsonInput(value: Record<string, unknown>): object {
   return JSON.parse(JSON.stringify(value)) as object;
+}
+
+function toAttachmentRow(row: {
+  id: string;
+  propertyId: string;
+  unitId: string | null;
+  kind: string;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  capturedAt: Date | null;
+  createdBy: string;
+}): AttachmentRow {
+  return {
+    id: row.id,
+    propertyId: row.propertyId,
+    unitId: row.unitId,
+    kind: row.kind,
+    storageKey: row.storageKey,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    capturedAt: row.capturedAt?.toISOString() ?? null,
+    createdBy: row.createdBy,
+  };
 }
 
 export class PrismaPropertiesStore implements PropertiesStore {
@@ -142,6 +167,60 @@ export class PrismaPropertiesStore implements PropertiesStore {
       subtype: updated.subtype,
       config: (updated.config ?? null) as Record<string, unknown> | null,
     };
+  }
+
+  async listAttachments(propertyId: string, orgId: string): Promise<AttachmentRow[] | null> {
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, orgId },
+      select: { id: true },
+    });
+    if (!property) {
+      return null;
+    }
+    const rows = await prisma.propertyAttachment.findMany({
+      where: { propertyId },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map(toAttachmentRow);
+  }
+
+  async createAttachment(data: {
+    orgId: string;
+    propertyId: string;
+    unitId: string | null;
+    kind: string;
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    capturedAt: Date | null;
+    createdBy: string;
+  }): Promise<AttachmentRow> {
+    const created = await prisma.propertyAttachment.create({
+      data: {
+        orgId: data.orgId,
+        propertyId: data.propertyId,
+        unitId: data.unitId,
+        kind: data.kind as "PHOTO" | "RECORD" | "DOCUMENT",
+        storageKey: data.storageKey,
+        mimeType: data.mimeType,
+        sizeBytes: data.sizeBytes,
+        capturedAt: data.capturedAt,
+        createdBy: data.createdBy,
+      },
+    });
+    return toAttachmentRow(created);
+  }
+
+  async deleteAttachment(id: string, orgId: string): Promise<boolean> {
+    const existing = await prisma.propertyAttachment.findFirst({
+      where: { id, orgId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return false;
+    }
+    await prisma.propertyAttachment.delete({ where: { id } });
+    return true;
   }
   async unitTenancyPeriods(unitId: string): Promise<TenancyPeriod[]> {
     const rows = await prisma.tenancy.findMany({

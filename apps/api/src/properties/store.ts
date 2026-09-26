@@ -56,6 +56,18 @@ export interface TenantInput {
   endDate?: string | undefined;
 }
 
+export interface AttachmentRow {
+  id: string;
+  propertyId: string;
+  unitId: string | null;
+  kind: string;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  capturedAt: string | null;
+  createdBy: string;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -91,6 +103,19 @@ export interface PropertiesStore {
     orgId: string,
     config: Record<string, unknown>,
   ): Promise<UnitRow | null>;
+  listAttachments(propertyId: string, orgId: string): Promise<AttachmentRow[] | null>;
+  createAttachment(data: {
+    orgId: string;
+    propertyId: string;
+    unitId: string | null;
+    kind: string;
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    capturedAt: Date | null;
+    createdBy: string;
+  }): Promise<AttachmentRow>;
+  deleteAttachment(id: string, orgId: string): Promise<boolean>;
   createTenancy(data: {
     orgId: string;
     propertyId: string;

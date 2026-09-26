@@ -16,6 +16,7 @@ import { RequestIdMiddleware } from "../src/request-id.middleware";
 import { PropertiesController } from "../src/properties/properties.controller";
 import { PropertiesService } from "../src/properties/properties.service";
 import type {
+  AttachmentRow,
   CreatePropertyInput,
   PropertiesStore,
   PropertyDetail,
@@ -74,8 +75,36 @@ interface StoredProperty extends PropertyDetail {
   shares: number[];
 }
 
+interface StoredAttachment {
+  id: string;
+  orgId: string;
+  propertyId: string;
+  unitId: string | null;
+  kind: string;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  capturedAt: Date | null;
+  createdBy: string;
+}
+
+function toAttachmentRow(row: StoredAttachment): AttachmentRow {
+  return {
+    id: row.id,
+    propertyId: row.propertyId,
+    unitId: row.unitId,
+    kind: row.kind,
+    storageKey: row.storageKey,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    capturedAt: row.capturedAt?.toISOString() ?? null,
+    createdBy: row.createdBy,
+  };
+}
+
 class FakePropertiesStore implements PropertiesStore {
   properties = new Map<string, StoredProperty>();
+  attachments = new Map<string, StoredAttachment>();
   audits: string[] = [];
 
   async findOrgDefaults(): Promise<{ country: string; locale: string; currency: string }> {
@@ -197,6 +226,41 @@ class FakePropertiesStore implements PropertiesStore {
       }
     }
     return null;
+  }
+
+  async listAttachments(propertyId: string, orgId: string): Promise<AttachmentRow[] | null> {
+    const property = this.properties.get(propertyId);
+    if (!property || property.orgId !== orgId) {
+      return null;
+    }
+    return [...this.attachments.values()]
+      .filter((row) => row.propertyId === propertyId)
+      .map(toAttachmentRow);
+  }
+
+  async createAttachment(data: {
+    orgId: string;
+    propertyId: string;
+    unitId: string | null;
+    kind: string;
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    capturedAt: Date | null;
+    createdBy: string;
+  }): Promise<AttachmentRow> {
+    const row: StoredAttachment = { id: `att-${this.attachments.size + 1}`, ...data };
+    this.attachments.set(row.id, row);
+    return toAttachmentRow(row);
+  }
+
+  async deleteAttachment(id: string, orgId: string): Promise<boolean> {
+    const found = this.attachments.get(id);
+    if (!found || found.orgId !== orgId) {
+      return false;
+    }
+    this.attachments.delete(id);
+    return true;
   }
 
   async writeAuditEvent(event: { action: string }): Promise<void> {
@@ -413,5 +477,113 @@ describe("properties and people", () => {
       body: JSON.stringify({ config: { a: 1 } }),
     });
     expect(missingUnit.status).toBe(404);
+  });
+
+  test("photo and record attachments register, list and delete", async () => {
+    const properties = (await (
+      await fetch(`${baseUrl}/api/v1/properties`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const propertyId = properties[0]?.id ?? "";
+    const detail = (await (
+      await fetch(`${baseUrl}/api/v1/properties/${propertyId}`, { headers: headers() })
+    ).json()) as { units: { id: string }[] };
+    const unitId = detail.units[0]?.id ?? "";
+    const payload = {
+      unitId,
+      kind: "PHOTO",
+      storageKey: "org-a/prop-1/unit-101/front.jpg",
+      mimeType: "image/jpeg",
+      sizeBytes: 512_000,
+      capturedAt: "2026-02-01",
+    };
+
+    const created = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(payload),
+    });
+    expect(created.status).toBe(201);
+    const attachment = (await created.json()) as { id: string; kind: string };
+    expect(attachment.kind).toBe("PHOTO");
+    expect(propertiesStore.audits).toContain("property.attachment.added");
+
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+        headers: headers(),
+      })
+    ).json()) as { id: string }[];
+    expect(listed.map((entry) => entry.id)).toContain(attachment.id);
+
+    const removed = await fetch(`${baseUrl}/api/v1/attachments/${attachment.id}`, {
+      method: "DELETE",
+      headers: headers(),
+    });
+    expect(removed.status).toBe(200);
+    expect(propertiesStore.audits).toContain("property.attachment.removed");
+
+    const relisted = (await (
+      await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+        headers: headers(),
+      })
+    ).json()) as { id: string }[];
+    expect(relisted.map((entry) => entry.id)).not.toContain(attachment.id);
+
+    const missing = await fetch(`${baseUrl}/api/v1/attachments/${attachment.id}`, {
+      method: "DELETE",
+      headers: headers(),
+    });
+    expect(missing.status).toBe(404);
+  });
+
+  test("invalid attachments and unknown properties are rejected", async () => {
+    const properties = (await (
+      await fetch(`${baseUrl}/api/v1/properties`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const propertyId = properties[0]?.id ?? "";
+    const badMime = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        kind: "PHOTO",
+        storageKey: "org-a/prop-1/front.jpg",
+        mimeType: "video/mp4",
+        sizeBytes: 100,
+      }),
+    });
+    expect(badMime.status).toBe(400);
+    const badUnit = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        unitId: "unit-missing",
+        kind: "PHOTO",
+        storageKey: "org-a/prop-1/front.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 100,
+      }),
+    });
+    expect(badUnit.status).toBe(400);
+    const missingProperty = await fetch(`${baseUrl}/api/v1/properties/prop-missing/attachments`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        kind: "PHOTO",
+        storageKey: "org-a/prop-1/front.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 100,
+      }),
+    });
+    expect(missingProperty.status).toBe(404);
+    const anonymous = await fetch(`${baseUrl}/api/v1/properties/${propertyId}/attachments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "PHOTO",
+        storageKey: "org-a/prop-1/front.jpg",
+        mimeType: "image/jpeg",
+        sizeBytes: 100,
+      }),
+    });
+    expect(anonymous.status).toBe(403);
   });
 });

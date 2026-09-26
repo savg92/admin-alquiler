@@ -131,6 +131,12 @@ enum AdminFeeType {
   EXTRAORDINARY
 }
 
+enum AttachmentKind {
+  PHOTO
+  RECORD
+  DOCUMENT
+}
+
 model Organization {
   id        String   @id @default(cuid())
   slug      String   @unique
@@ -159,6 +165,7 @@ model Organization {
   lateFeeRules  LateFeeRule[]
   settlements   Settlement[]
   notifications Notification[]
+  attachments   PropertyAttachment[]
 }
 
 model User {
@@ -245,7 +252,7 @@ model Property {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org          Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org          Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   units        Unit[]
   ownerships   PropertyOwnership[]
   tenancies    Tenancy[]
@@ -254,6 +261,7 @@ model Property {
   assemblyActs AssemblyAct[]
   adminFees    AdminFee[]
   houseRules   HouseRule[]
+  attachments  PropertyAttachment[]
 
   @@index([orgId])
 }
@@ -994,4 +1002,24 @@ model OutboxEvent {
   org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([processedAt, occurredAt])
+}
+
+model PropertyAttachment {
+  id         String         @id @default(cuid())
+  orgId      String
+  propertyId String
+  unitId     String?
+  kind       AttachmentKind
+  storageKey String
+  mimeType   String
+  sizeBytes  Int
+  capturedAt DateTime?
+  createdBy  String
+  createdAt  DateTime       @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  property Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([propertyId])
 }

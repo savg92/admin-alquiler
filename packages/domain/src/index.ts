@@ -33,6 +33,13 @@ export type {
   PaymentAllocation,
 } from "./rental";
 export {
+  ATTACHMENT_KINDS,
+  ATTACHMENT_MIME_TYPES,
+  MAX_ATTACHMENT_BYTES,
+  validateAttachment,
+} from "./attachments";
+export type { AttachmentInput, AttachmentKind, ValidAttachment } from "./attachments";
+export {
   decideImport,
   dedupeKey,
   parseAmountToMinor,

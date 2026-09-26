@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -166,5 +167,47 @@ export class PropertiesController {
       startDate: typeof startDate === "string" ? startDate : "",
       endDate: typeof endDate === "string" ? endDate : undefined,
     });
+  }
+
+  @Post("properties/:id/attachments")
+  @RequirePermission("property:write")
+  @ApiResponse({
+    status: 201,
+    description: "Photo/record metadata registered for private storage.",
+  })
+  addAttachment(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { unitId, kind, storageKey, mimeType, sizeBytes, capturedAt } = body as {
+      unitId?: unknown;
+      kind?: unknown;
+      storageKey?: unknown;
+      mimeType?: unknown;
+      sizeBytes?: unknown;
+      capturedAt?: unknown;
+    };
+    return this.properties.addAttachment(orgIdOf(req), actorIdOf(req), id, {
+      unitId: typeof unitId === "string" ? unitId : undefined,
+      kind,
+      storageKey,
+      mimeType,
+      sizeBytes,
+      capturedAt,
+    });
+  }
+
+  @Get("properties/:id/attachments")
+  @RequirePermission("property:read")
+  @ApiResponse({ status: 200, description: "Photo/record metadata for a property." })
+  listAttachments(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.properties.listAttachments(id, orgIdOf(req));
+  }
+
+  @Delete("attachments/:id")
+  @RequirePermission("property:write")
+  @ApiResponse({ status: 200, description: "Attachment metadata removed." })
+  deleteAttachment(@Req() req: ActorRequest, @Param("id") id: string) {
+    return this.properties.deleteAttachment(id, orgIdOf(req), actorIdOf(req));
   }
 }

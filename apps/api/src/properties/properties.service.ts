@@ -3,6 +3,7 @@ import {
   buildAuditEvent,
   setupChecklist,
   tenancyPeriodsOverlap,
+  validateAttachment,
   validateBulkUnits,
   validateConfigRecord,
   type SetupChecklist,
@@ -120,6 +121,77 @@ export class PropertiesService {
       throw new NotFoundException("Property not found.");
     }
     return found;
+  }
+
+  async addAttachment(
+    orgId: string,
+    actorId: string,
+    propertyId: string,
+    input: {
+      unitId?: string | undefined;
+      kind: unknown;
+      storageKey: unknown;
+      mimeType: unknown;
+      sizeBytes: unknown;
+      capturedAt?: unknown;
+    },
+  ) {
+    const property = await this.getProperty(propertyId, orgId);
+    let valid;
+    try {
+      valid = validateAttachment(input);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid attachment.");
+    }
+    if (valid.unitId && !property.units.some((unit) => unit.id === valid.unitId)) {
+      throw new BadRequestException("Unit does not belong to this property.");
+    }
+    const created = await this.store.createAttachment({
+      orgId,
+      propertyId,
+      unitId: valid.unitId,
+      kind: valid.kind,
+      storageKey: valid.storageKey,
+      mimeType: valid.mimeType,
+      sizeBytes: valid.sizeBytes,
+      capturedAt: valid.capturedAt,
+      createdBy: actorId,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "property.attachment.added",
+        entityType: "PropertyAttachment",
+        entityId: created.id,
+      }),
+    );
+    return created;
+  }
+
+  async listAttachments(propertyId: string, orgId: string) {
+    const rows = await this.store.listAttachments(propertyId, orgId);
+    if (!rows) {
+      throw new NotFoundException("Property not found.");
+    }
+    return rows;
+  }
+
+  async deleteAttachment(id: string, orgId: string, actorId: string) {
+    const deleted = await this.store.deleteAttachment(id, orgId);
+    if (!deleted) {
+      throw new NotFoundException("Attachment not found.");
+    }
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "property.attachment.removed",
+        entityType: "PropertyAttachment",
+        entityId: id,
+      }),
+    );
+    return { deleted: true };
   }
 
   async setupStatus(id: string, orgId: string): Promise<SetupChecklist> {

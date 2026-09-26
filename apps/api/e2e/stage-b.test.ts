@@ -67,6 +67,21 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
   >();
   receipts = new Map<string, { id: string; number: string; locale: string; paymentId: string }>();
   settlements = new Map<string, SettlementDetail>();
+  attachments = new Map<
+    string,
+    {
+      id: string;
+      orgId: string;
+      propertyId: string;
+      unitId: string | null;
+      kind: string;
+      storageKey: string;
+      mimeType: string;
+      sizeBytes: number;
+      capturedAt: Date | null;
+      createdBy: string;
+    }
+  >();
   numbers = new Set<string>();
   audits: string[] = [];
 
@@ -309,6 +324,41 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
       }
     }
     return null;
+  }
+
+  async listAttachments(propertyId: string, orgId: string) {
+    const property = this.properties.get(propertyId);
+    if (!property || property.orgId !== orgId) {
+      return null;
+    }
+    return [...this.attachments.values()]
+      .filter((row) => row.propertyId === propertyId)
+      .map((row) => ({ ...row, capturedAt: row.capturedAt?.toISOString() ?? null }));
+  }
+
+  async createAttachment(data: {
+    orgId: string;
+    propertyId: string;
+    unitId: string | null;
+    kind: string;
+    storageKey: string;
+    mimeType: string;
+    sizeBytes: number;
+    capturedAt: Date | null;
+    createdBy: string;
+  }) {
+    const row = { id: `att-${this.attachments.size + 1}`, ...data };
+    this.attachments.set(row.id, row);
+    return { ...row, capturedAt: row.capturedAt?.toISOString() ?? null };
+  }
+
+  async deleteAttachment(id: string, orgId: string): Promise<boolean> {
+    const found = this.attachments.get(id);
+    if (!found || found.orgId !== orgId) {
+      return false;
+    }
+    this.attachments.delete(id);
+    return true;
   }
 
   async unitTenancyPeriods(unitId: string): Promise<TenancyPeriod[]> {
