@@ -102,8 +102,8 @@ E2E gate is green.
 
 - [x] Document types + templates (language/version metadata)
 - [x] Editor + versioning + attachments
-- [ ] Approvals + signatures + lifecycle state machine (Draft → … → Final)
-- [ ] Async PDF generation (deterministic, auditable)
+- [x] Approvals + signatures + lifecycle state machine (Draft → … → Final)
+- [x] Async PDF generation (deterministic, auditable)
 
 ### WS-7 — Operations [Stage D]
 

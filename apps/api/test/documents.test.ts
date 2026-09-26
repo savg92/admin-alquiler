@@ -403,4 +403,86 @@ describe("document templates and versioning", () => {
     expect(detail.versions.map((row) => row.version)).toEqual([1, 2]);
     expect(documentsStore.audits).toContain("document.edited");
   });
+
+  test("lifecycle enforces Draft to Final with approvals and signatures", async () => {
+    const created = (await (
+      await fetch(`${baseUrl}/api/v1/documents`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ title: "Acta 001", body: "Contenido del acta." }),
+      })
+    ).json()) as { id: string };
+    const jump = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "FINAL" }),
+    });
+    expect(jump.status).toBe(400);
+    const toReview = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "IN_REVIEW" }),
+    });
+    expect(toReview.status).toBe(201);
+    const earlyApprove = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "APPROVED" }),
+    });
+    expect(earlyApprove.status).toBe(400);
+    const approval = await fetch(`${baseUrl}/api/v1/documents/${created.id}/approvals`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ approved: true }),
+    });
+    expect(approval.status).toBe(201);
+    const approved = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "APPROVED" }),
+    });
+    expect(approved.status).toBe(201);
+    const earlySign = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ to: "SIGNED" }),
+    });
+    expect(earlySign.status).toBe(400);
+    const signature = await fetch(`${baseUrl}/api/v1/documents/${created.id}/signatures`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ proof: "firma-manuscrita" }),
+    });
+    expect(signature.status).toBe(201);
+    for (const to of ["SIGNED", "FINAL"]) {
+      const step = await fetch(`${baseUrl}/api/v1/documents/${created.id}/transitions`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ to }),
+      });
+      expect(step.status).toBe(201);
+    }
+    const detail = (await (
+      await fetch(`${baseUrl}/api/v1/documents/${created.id}`, { headers: headers() })
+    ).json()) as { status: string };
+    expect(detail.status).toBe("FINAL");
+    const pdf = (await (
+      await fetch(`${baseUrl}/api/v1/documents/${created.id}/pdf`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({}),
+      })
+    ).json()) as { created: boolean; version: number };
+    expect(pdf.created).toBe(true);
+    const pdfAgain = (await (
+      await fetch(`${baseUrl}/api/v1/documents/${created.id}/pdf`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({}),
+      })
+    ).json()) as { created: boolean };
+    expect(pdfAgain.created).toBe(false);
+    expect(documentsStore.audits).toContain("document.status_changed");
+    expect(documentsStore.audits).toContain("document.pdf_requested");
+  });
 });

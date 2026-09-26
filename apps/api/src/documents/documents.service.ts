@@ -1,10 +1,12 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   buildAuditEvent,
+  canTransitionDocument,
   validateDocumentBody,
   validateDocumentTitle,
   validateLocale,
   validateTemplateName,
+  type DocumentStatus,
 } from "@admin-alquiler/domain";
 import { DOCUMENTS_STORE } from "./tokens";
 import type { DocumentsStore } from "./store";
@@ -172,5 +174,138 @@ export class DocumentsService {
       }),
     );
     return saved;
+  }
+
+  async transitionDocument(orgId: string, actorId: string, id: string, to: DocumentStatus) {
+    const valid = ["DRAFT", "IN_REVIEW", "APPROVED", "SIGNED", "FINAL", "ARCHIVED"];
+    if (!valid.includes(to)) {
+      throw new BadRequestException(`Invalid status "${to}".`);
+    }
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    const from = found.status as DocumentStatus;
+    if (!canTransitionDocument(from, to)) {
+      throw new BadRequestException(`Cannot transition from ${from} to ${to}.`);
+    }
+    if (to === "APPROVED") {
+      const approvals = await this.store.listApprovals(id);
+      const approved = approvals.filter((row) => row.approved === true).length;
+      const rejected = approvals.filter((row) => row.approved === false).length;
+      if (approved === 0 || rejected > 0) {
+        throw new BadRequestException("Approval requires an approval with no rejections.");
+      }
+    }
+    if (to === "SIGNED") {
+      const signatures = await this.store.listSignatures(id);
+      if (signatures.length === 0) {
+        throw new BadRequestException("Signing requires at least one recorded signature.");
+      }
+    }
+    const updated = await this.store.setDocumentStatus(id, to);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "document.status_changed",
+        entityType: "Document",
+        entityId: id,
+        metadata: { from, to },
+      }),
+    );
+    return updated;
+  }
+
+  async recordApproval(orgId: string, actorId: string, id: string, approved: boolean) {
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    if (found.status !== "IN_REVIEW") {
+      throw new BadRequestException("Approvals are only recorded while in review.");
+    }
+    const saved = await this.store.recordApproval(id, actorId, approved);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: approved ? "document.approved" : "document.rejected",
+        entityType: "Approval",
+        entityId: saved.id,
+        metadata: { documentId: id },
+      }),
+    );
+    return saved;
+  }
+
+  async listApprovals(id: string, orgId: string) {
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    return this.store.listApprovals(id);
+  }
+
+  async recordSignature(orgId: string, actorId: string, id: string, proof?: string | null) {
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    if (found.status !== "APPROVED") {
+      throw new BadRequestException("Signatures are only recorded once approved.");
+    }
+    if (proof !== undefined && proof !== null && (proof.length === 0 || proof.length > 500)) {
+      throw new BadRequestException("proof must be 1-500 characters when present.");
+    }
+    const existing = await this.store.listSignatures(id);
+    if (existing.some((row) => row.signerId === actorId)) {
+      throw new BadRequestException("Signer already signed this document.");
+    }
+    const saved = await this.store.recordSignature(id, actorId, proof ?? null);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "document.signed",
+        entityType: "Signature",
+        entityId: saved.id,
+        metadata: { documentId: id },
+      }),
+    );
+    return saved;
+  }
+
+  async listSignatures(id: string, orgId: string) {
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    return this.store.listSignatures(id);
+  }
+
+  async requestPdf(orgId: string, actorId: string, id: string, version?: number) {
+    const found = await this.store.findDocument(id, orgId);
+    if (!found) {
+      throw new NotFoundException("Document not found.");
+    }
+    const target = version ?? found.currentVersion;
+    if (!Number.isInteger(target) || target < 1 || target > found.currentVersion) {
+      throw new BadRequestException("version must reference an existing document version.");
+    }
+    const job = await this.store.enqueuePdfJob(orgId, id, target);
+    if (job.created) {
+      await this.store.writeAuditEvent(
+        buildAuditEvent({
+          orgId,
+          actorId,
+          action: "document.pdf_requested",
+          entityType: "Document",
+          entityId: id,
+          metadata: { version: target, jobId: job.id },
+        }),
+      );
+    }
+    return { ...job, documentId: id, version: target };
   }
 }
