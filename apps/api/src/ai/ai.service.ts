@@ -76,9 +76,10 @@ export async function evaluateAutoAdvanceGate(
   rows: ObservationRow[],
   questionType: QuestionType,
 ): Promise<AutoAdvanceGate> {
+  const relevant = rows.filter((row) => row.questionType === questionType);
   const verdict = evaluateCalibrationGate(
     questionType,
-    rows.map((row) => ({
+    relevant.map((row) => ({
       confidence: row.confidence,
       correct: row.correct,
       observedAt: row.observedAt,

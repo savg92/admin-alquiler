@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { describe, expect, test } from "bun:test";
 import { prisma } from "@admin-alquiler/database";
 import { PrismaAiStore } from "../src/ai/prisma.store";
+import { evaluateAutoAdvanceGate } from "../src/ai/ai.service";
 import { RegistryService } from "../src/ai/registry.service";
 
 async function isDatabaseReachable(): Promise<boolean> {
@@ -152,5 +153,71 @@ describe.skipIf(!dbReachable)("AI registry against a real database", () => {
         entityType: "AiCall",
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe.skipIf(!dbReachable)("§11 calibration gate against a real database", () => {
+  const store = new PrismaAiStore();
+  const gateModelId = "db-check-gate";
+
+  async function seedLabeledHistory(): Promise<void> {
+    const start = new Date(Date.now() - 9 * 86_400_000);
+    const rows = [
+      ...Array.from({ length: 180 }, (_, index) => ({
+        orgId: null,
+        modelId: gateModelId,
+        questionType: "triage",
+        confidence: 0.95,
+        correct: true,
+        createdAt: new Date(start.getTime() + index * 43_200_000),
+      })),
+      ...Array.from({ length: 40 }, (_, index) => ({
+        orgId: null,
+        modelId: gateModelId,
+        questionType: "triage",
+        confidence: 0.2,
+        correct: false,
+        createdAt: new Date(start.getTime() + (180 + index) * 43_200_000),
+      })),
+    ];
+    await prisma.aIDecisionObservation.createMany({ data: rows });
+  }
+
+  test("labeled outcomes persisted as createdAt reach the gate as observedAt", async () => {
+    await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
+    const rows = await store.listObservations(gateModelId, "triage");
+    expect(rows).toHaveLength(0);
+
+    const gate = await evaluateAutoAdvanceGate(rows, "triage");
+    expect(gate.allowedToAutoAdvance).toBe(false);
+    expect(gate.checks.map((check) => check.id)).toContain("labeled-samples");
+  });
+
+  test("200+ labeled outcomes across 9 days open the gate, and cleanup closes it again", async () => {
+    await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
+    await seedLabeledHistory();
+
+    const rows = await store.listObservations(gateModelId, "triage");
+    expect(rows).toHaveLength(220);
+    expect(rows[0]?.observedAt).toBeInstanceOf(Date);
+
+    const gate = await evaluateAutoAdvanceGate(rows, "triage");
+    expect(gate.checks.filter((check) => !check.passed)).toEqual([]);
+    expect(gate.allowedToAutoAdvance).toBe(true);
+
+    await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
+    const cleared = await store.listObservations(gateModelId, "triage");
+    expect(await evaluateAutoAdvanceGate(cleared, "triage")).toMatchObject({
+      allowedToAutoAdvance: false,
+    });
+  });
+
+  test("evidence for one question type never opens another", async () => {
+    await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
+    await seedLabeledHistory();
+    const rows = await store.listObservations(gateModelId, "triage");
+    const dunning = await evaluateAutoAdvanceGate(rows, "dunning");
+    expect(dunning.allowedToAutoAdvance).toBe(false);
+    await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
   });
 });
