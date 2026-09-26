@@ -72,10 +72,10 @@ export interface DecideOutcome extends DecideResult {
  * es-CO outcomes, spread over enough days, to trust its confidence. Fails closed — an unreadable
  * store or an empty history blocks auto-advance rather than permitting it.
  */
-export async function evaluateAutoAdvanceGate(
+export function evaluateAutoAdvanceGate(
   rows: ObservationRow[],
   questionType: QuestionType,
-): Promise<AutoAdvanceGate> {
+): AutoAdvanceGate {
   const relevant = rows.filter((row) => row.questionType === questionType);
   const verdict = evaluateCalibrationGate(
     questionType,

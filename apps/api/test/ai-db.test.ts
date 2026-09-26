@@ -188,7 +188,7 @@ describe.skipIf(!dbReachable)("§11 calibration gate against a real database", (
     const rows = await store.listObservations(gateModelId, "triage");
     expect(rows).toHaveLength(0);
 
-    const gate = await evaluateAutoAdvanceGate(rows, "triage");
+    const gate = evaluateAutoAdvanceGate(rows, "triage");
     expect(gate.allowedToAutoAdvance).toBe(false);
     expect(gate.checks.map((check) => check.id)).toContain("labeled-samples");
   });
@@ -201,13 +201,13 @@ describe.skipIf(!dbReachable)("§11 calibration gate against a real database", (
     expect(rows).toHaveLength(220);
     expect(rows[0]?.observedAt).toBeInstanceOf(Date);
 
-    const gate = await evaluateAutoAdvanceGate(rows, "triage");
+    const gate = evaluateAutoAdvanceGate(rows, "triage");
     expect(gate.checks.filter((check) => !check.passed)).toEqual([]);
     expect(gate.allowedToAutoAdvance).toBe(true);
 
     await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
     const cleared = await store.listObservations(gateModelId, "triage");
-    expect(await evaluateAutoAdvanceGate(cleared, "triage")).toMatchObject({
+    expect(evaluateAutoAdvanceGate(cleared, "triage")).toMatchObject({
       allowedToAutoAdvance: false,
     });
   });
@@ -216,7 +216,7 @@ describe.skipIf(!dbReachable)("§11 calibration gate against a real database", (
     await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
     await seedLabeledHistory();
     const rows = await store.listObservations(gateModelId, "triage");
-    const dunning = await evaluateAutoAdvanceGate(rows, "dunning");
+    const dunning = evaluateAutoAdvanceGate(rows, "dunning");
     expect(dunning.allowedToAutoAdvance).toBe(false);
     await prisma.aIDecisionObservation.deleteMany({ where: { modelId: gateModelId } });
   });
