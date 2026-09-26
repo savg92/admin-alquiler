@@ -175,7 +175,7 @@ E2E gate is green.
 
 ### Gateway + modes (§1–§2)
 
-- [ ] Stable gateway API: `generateText`, `generateStructuredOutput`, `generateEmbedding`, `analyzeImage`, `decide`
+- [/] Stable gateway API: `generateText`, `generateStructuredOutput`, `generateEmbedding`, `analyzeImage`, `decide`
 - [ ] Execution modes (disabled/webgpu/local/hybrid/provider) with configurable priority + fallback
 - [ ] Graceful non-AI path verified for every AI-assisted feature
 

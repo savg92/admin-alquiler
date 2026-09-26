@@ -27,6 +27,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@admin-alquiler/ai": ["./packages/ai/src/index.ts"],
       "@admin-alquiler/auth": ["./packages/auth/src/index.ts"],
       "@admin-alquiler/config": ["./packages/config/src/index.ts"],
       "@admin-alquiler/database": ["./packages/database/src/index.ts"],
