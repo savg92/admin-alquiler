@@ -177,11 +177,11 @@ E2E gate is green.
 
 - [x] Stable gateway API: `generateText`, `generateStructuredOutput`, `generateEmbedding`, `analyzeImage`, `decide`
 - [x] Execution modes (disabled/webgpu/local/hybrid/provider) with configurable priority + fallback
-- [/] Graceful non-AI path verified for every AI-assisted feature
+- [x] Graceful non-AI path verified for every AI-assisted feature
 
 ### Local + provider (§3–§5)
 
-- [ ] WebGPU (capability/memory checks, download cache + recovery, mobile/desktop tests)
+- [x] WebGPU (capability/memory checks, download cache + recovery, mobile/desktop tests)
 - [x] Local inference adapter (LFM2.5 candidates; no hard-coded model)
 - [x] Self-hosted decision default: Laya (multilingual checkpoint; fine-tuned, see evaluation)
 - [x] Optional hosted decision adapter: Jev (same `decide` interface; explicit config; never the only option)
@@ -192,12 +192,12 @@ E2E gate is green.
 - [x] Model registry (metadata + lifecycle; no auto-deploy of new models)
 - [x] AI flags (`AI_ENABLED`, `AI_WEBGPU_ENABLED`, `AI_LOCAL_MODELS`, `AI_EXTERNAL_PROVIDER`)
 - [x] Privacy policy engine (data classes; FINANCIAL/LEGAL/PERSONAL local-only by default)
-- [/] Safety pipeline on every call (classify → minimize → select → infer → validate → authorize → confirm)
+- [x] Safety pipeline on every call (classify → minimize → select → infer → validate → authorize → confirm)
 
 ### Features + evaluation (§10–§12)
 
-- [ ] Drafting, communication assistance, summarization, extraction, classification, vision
-- [ ] `decide` triage (complaints/maintenance, proof-match suggestions, dunning stages; human confirms postings)
+- [x] Drafting, communication assistance, summarization, extraction, classification, vision
+- [x] `decide` triage (complaints/maintenance, proof-match suggestions, dunning stages; human confirms postings)
 - [ ] Evaluation suite (es-CO + en quality, extraction, classification, hallucination, latency, memory, fallback)
 - [ ] Decision calibration gate (fine-tune on own data; fit temperatures; log confidence vs outcomes; own thresholds)
 - [x] AI observability (safe metadata only; no sensitive prompts/responses by default)
