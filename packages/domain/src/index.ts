@@ -93,6 +93,7 @@ export type {
 } from "./finance-import";
 export {
   delinquencyRate,
+  maintenanceSla,
   occupancyRate,
   statementTotals,
   upcomingExpirations,
@@ -101,3 +102,4 @@ export {
 } from "./reporting";
 export { validateAccount, validateCategoryName, validateLedgerTransaction } from "./ledger";
 export type { AccountInput, LedgerTransactionInput } from "./ledger";
+export type { MaintenanceCase, MaintenanceSla } from "./reporting";

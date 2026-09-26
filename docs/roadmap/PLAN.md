@@ -95,7 +95,7 @@ E2E gate is green.
 - [x] Bank imports (Bancolombia/Davivienda maps; dedupe key; quarantine on conflict)
 - [x] Reconciliation (manual confirm with suggestions; OCR assist-only, human posts)
 - [x] Periods + monthly/yearly statements
-- [ ] v1 KPI set: occupancy, delinquency rate, upcoming expirations, maintenance SLA, per-property P&L/EBIT
+- [x] v1 KPI set: occupancy, delinquency rate, upcoming expirations, maintenance SLA, per-property P&L/EBIT
 - [x] Owner settlements (commission rules; monthly statements; ownership-% splits; recorded payouts)
 
 ### WS-6 — Documents [Stage D]

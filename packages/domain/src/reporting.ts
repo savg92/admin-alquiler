@@ -65,6 +65,46 @@ export function validateTransferRef(value: unknown): string {
   return value.trim();
 }
 
+export interface MaintenanceCase {
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceSla {
+  resolved: number;
+  withinTarget: number;
+  rate: number;
+  openCases: number;
+}
+
+export function maintenanceSla(cases: MaintenanceCase[], targetDays = 7): MaintenanceSla {
+  let resolved = 0;
+  let withinTarget = 0;
+  let openCases = 0;
+  for (const item of cases) {
+    const created = Date.parse(item.createdAt);
+    const updated = Date.parse(item.updatedAt);
+    if (Number.isNaN(created) || Number.isNaN(updated)) {
+      continue;
+    }
+    if (item.status === "RESOLVED" || item.status === "CLOSED") {
+      resolved += 1;
+      if (updated - created <= targetDays * 86_400_000) {
+        withinTarget += 1;
+      }
+    } else {
+      openCases += 1;
+    }
+  }
+  return {
+    resolved,
+    withinTarget,
+    rate: resolved === 0 ? 0 : withinTarget / resolved,
+    openCases,
+  };
+}
+
 const ISO_CURRENCIES = new Set([
   "COP",
   "USD",
