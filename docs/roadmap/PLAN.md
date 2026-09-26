@@ -204,7 +204,7 @@ E2E gate is green.
 
 ### Phase 2 exit gate
 
-- [ ] AI off breaks nothing; models swap without logic rewrites; sensitive data stays local; all AI-structured results validated
+- [x] AI off breaks nothing; models swap without logic rewrites; sensitive data stays local; all AI-structured results validated
 
 ## Phase 3 — RAG + Knowledge (deferred)
 
