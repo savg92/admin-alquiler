@@ -760,6 +760,7 @@ model MaintenanceRequest {
   updatedAt   DateTime            @updatedAt
 
   workOrders WorkOrder[]
+  handovers  Handover[]
 
   @@index([orgId])
   @@index([propertyId])
@@ -780,6 +781,28 @@ model WorkOrder {
   supplier Supplier?          @relation(fields: [supplierId], references: [id])
 
   @@index([requestId])
+}
+
+model Handover {
+  id                String   @id @default(cuid())
+  orgId             String
+  propertyId        String
+  unitId            String?
+  contractId        String?
+  maintenanceId     String?
+  kind              String
+  notes             String?
+  evidence          Json?
+  documentId        String?
+  depositDeduction  Json?
+  recordedBy        String
+  createdAt         DateTime @default(now())
+
+  maintenance MaintenanceRequest? @relation(fields: [maintenanceId], references: [id])
+
+  @@index([orgId])
+  @@index([propertyId])
+  @@index([contractId])
 }
 
 model Supplier {

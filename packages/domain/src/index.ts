@@ -112,3 +112,10 @@ export {
   validateTemplateName,
 } from "./documents";
 export type { DocumentStatus } from "./documents";
+export {
+  canTransitionMaintenance,
+  parseMaintenancePriority,
+  parseMaintenanceStatus,
+  validateMaintenanceText,
+} from "./operations";
+export type { MaintenancePriority, MaintenanceStatus } from "./operations";

@@ -5,6 +5,7 @@ import { DocumentsModule } from "./documents/documents.module";
 import { FinanceModule } from "./finance/finance.module";
 import { HealthController } from "./health.controller";
 import { OrganizationsModule } from "./organizations/organizations.module";
+import { OperationsModule } from "./operations/operations.module";
 import { PropertiesModule } from "./properties/properties.module";
 import { RentalModule } from "./rental/rental.module";
 import { ReportsModule } from "./reports/reports.module";
@@ -19,6 +20,7 @@ import { RequestIdMiddleware } from "./request-id.middleware";
     CommunicationsModule,
     DocumentsModule,
     FinanceModule,
+    OperationsModule,
     OrganizationsModule,
     PropertiesModule,
     RentalModule,
