@@ -369,6 +369,14 @@ export class AiController {
     return this.ai.calibration(modelId, questionType);
   }
 
+  @Get("metrics")
+  @RequirePermission("ai:read")
+  @ApiResponse({ status: 200, description: "Safe AI call metadata (no prompts or responses)." })
+  metrics(@Req() req: ActorRequest) {
+    void orgIdOf(req);
+    return this.ai.metricsSnapshot();
+  }
+
   @Get("modes")
   @RequirePermission("ai:read")
   @ApiResponse({ status: 200, description: "Execution modes and priority." })

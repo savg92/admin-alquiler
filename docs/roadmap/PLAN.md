@@ -200,7 +200,7 @@ E2E gate is green.
 - [ ] `decide` triage (complaints/maintenance, proof-match suggestions, dunning stages; human confirms postings)
 - [ ] Evaluation suite (es-CO + en quality, extraction, classification, hallucination, latency, memory, fallback)
 - [ ] Decision calibration gate (fine-tune on own data; fit temperatures; log confidence vs outcomes; own thresholds)
-- [ ] AI observability (safe metadata only; no sensitive prompts/responses by default)
+- [x] AI observability (safe metadata only; no sensitive prompts/responses by default)
 
 ### Phase 2 exit gate
 

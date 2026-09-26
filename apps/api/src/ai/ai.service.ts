@@ -12,11 +12,13 @@ import {
   type DataClass,
   type DecideResult,
   type ExecutionMode,
+  type PrivacyLevel,
   type QuestionType,
   type RuntimeKind,
 } from "@admin-alquiler/ai";
 import { buildAuditEvent } from "@admin-alquiler/domain";
 import { readAiConfig, type AiConfig } from "@admin-alquiler/config";
+import { AiObservabilityService } from "./observability";
 import { AI_STORE } from "./tokens";
 import type { AiStore } from "./store";
 
@@ -31,6 +33,47 @@ type ChatContent = string | ChatContentPart[];
 interface ChatMessage {
   role: string;
   content: ChatContent;
+}
+
+interface TokenUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+}
+
+interface ChatCompletion {
+  text: string;
+  usage: TokenUsage;
+}
+
+const EMPTY_USAGE: TokenUsage = { promptTokens: null, completionTokens: null };
+
+const PRIVACY_LEVELS: readonly string[] = ["local-only", "local-preferred", "provider-allowed"];
+
+function isPrivacyLevel(value: string): value is PrivacyLevel {
+  return PRIVACY_LEVELS.includes(value);
+}
+
+function tokenUsageOf(body: unknown): TokenUsage {
+  const usage = asRecord(asRecord(body)?.["usage"]);
+  const prompt = usage?.["prompt_tokens"];
+  const completion = usage?.["completion_tokens"];
+  return {
+    promptTokens: typeof prompt === "number" ? prompt : null,
+    completionTokens: typeof completion === "number" ? completion : null,
+  };
+}
+
+function providerOf(config: AiConfig, runtime: RuntimeKind | undefined): string {
+  if (runtime === "provider") {
+    return config.externalProvider.length > 0 ? config.externalProvider : "provider";
+  }
+  if (runtime === "webgpu") {
+    return "client";
+  }
+  if (runtime === "local") {
+    return "self-hosted";
+  }
+  return "none";
 }
 
 const IMAGE_MEDIA_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
@@ -101,7 +144,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 @Injectable()
 export class AiService {
-  constructor(@Inject(AI_STORE) private readonly store: AiStore) {}
+  constructor(
+    @Inject(AI_STORE) private readonly store: AiStore,
+    private readonly metrics: AiObservabilityService,
+  ) {}
 
   private config(): AiConfig {
     return readAiConfig();
@@ -202,7 +248,22 @@ export class AiService {
     latencyMs: number,
     success: boolean,
     fallback: boolean,
+    usage: TokenUsage = EMPTY_USAGE,
   ): Promise<void> {
+    const runtime = resolved?.runtime ?? "disabled";
+    const privacyMode = resolved?.privacyLevel ?? "unknown";
+    this.metrics.record({
+      feature,
+      runtime,
+      model: resolved?.model ?? "disabled",
+      provider: providerOf(this.config(), resolved?.runtime),
+      privacyMode: isPrivacyLevel(privacyMode) ? privacyMode : "unknown",
+      latencyMs,
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      fallback,
+      success,
+    });
     await this.store.writeAuditEvent(
       buildAuditEvent({
         orgId,
@@ -211,9 +272,9 @@ export class AiService {
         entityType: "AiCall",
         metadata: {
           feature,
-          runtime: resolved?.runtime ?? "disabled",
+          runtime,
           model: resolved?.model ?? null,
-          privacyLevel: resolved?.privacyLevel ?? "unknown",
+          privacyLevel: privacyMode,
           latencyMs,
           success,
           fallback,
@@ -229,7 +290,7 @@ export class AiService {
     messages: ChatMessage[],
     maxTokens: number,
     config: AiConfig,
-  ): Promise<string> {
+  ): Promise<ChatCompletion> {
     const { status, body } = await fetchJson(
       `${baseUrl.replace(/\/$/, "")}/v1/chat/completions`,
       {
@@ -254,7 +315,7 @@ export class AiService {
     if (typeof content !== "string" || content.length === 0) {
       throw new BadGatewayException("Inference endpoint returned no text.");
     }
-    return content;
+    return { text: content, usage: tokenUsageOf(body) };
   }
 
   async generateText(
@@ -319,7 +380,7 @@ export class AiService {
       prompt = redactPersonal(input.prompt).redacted;
     }
     try {
-      const text = await this.chatCompletions(
+      const completion = await this.chatCompletions(
         resolved.runtime === "provider" ? config.providerBaseUrl : config.localBaseUrl,
         resolved.runtime === "provider" ? config.providerApiKey : null,
         resolved.model,
@@ -335,12 +396,13 @@ export class AiService {
         Date.now() - started,
         true,
         false,
+        completion.usage,
       );
       return {
         available: true,
         runtime: resolved.runtime,
         model: resolved.model,
-        text,
+        text: completion.text,
         deferred: false,
       };
     } catch (error) {
@@ -585,6 +647,9 @@ export class AiService {
         success,
         result.escalated,
       );
+      if (result.escalated) {
+        this.metrics.recordEscalation();
+      }
       return result;
     };
     if (!config.enabled) {
@@ -743,7 +808,7 @@ export class AiService {
     const prompt =
       resolved.runtime === "provider" ? redactPersonal(input.prompt).redacted : input.prompt;
     try {
-      const text = await this.chatCompletions(
+      const completion = await this.chatCompletions(
         baseUrl,
         apiKey,
         resolved.model,
@@ -764,7 +829,7 @@ export class AiService {
       );
       let parsed: unknown;
       try {
-        parsed = JSON.parse(text);
+        parsed = JSON.parse(completion.text);
       } catch {
         throw new BadGatewayException("Vision output is not valid JSON.");
       }
@@ -835,6 +900,10 @@ export class AiService {
       }),
     );
     return saved;
+  }
+
+  metricsSnapshot() {
+    return this.metrics.snapshot();
   }
 
   async calibration(modelId: string, questionType: string) {

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { hashPassword } from "@admin-alquiler/auth";
 import { AiController } from "../src/ai/ai.controller";
 import { AiService } from "../src/ai/ai.service";
+import { AiObservabilityService } from "../src/ai/observability";
 import { RegistryService } from "../src/ai/registry.service";
 import type { AIModelRow, AiStore, AuditInput, ObservationRow } from "../src/ai/store";
 import { AI_STORE } from "../src/ai/tokens";
@@ -196,9 +197,13 @@ function serveInference(server: { hits: Seen[] }) {
                 },
               },
             ],
+            usage: { prompt_tokens: 120, completion_tokens: 45 },
           });
         }
-        return Response.json({ choices: [{ message: { content: "Borrador local generado." } }] });
+        return Response.json({
+          choices: [{ message: { content: "Borrador local generado." } }],
+          usage: { prompt_tokens: 42, completion_tokens: 7 },
+        });
       }
       if (url.pathname === "/v1/embeddings") {
         return Response.json({ data: [{ embedding: [0.11, 0.22, 0.33] }] });
@@ -228,6 +233,7 @@ let provider: ReturnType<typeof serveInference>;
     AuthService,
     AiService,
     RegistryService,
+    AiObservabilityService,
     JwtAuthGuard,
     PermissionsGuard,
     { provide: AUTH_STORE, useValue: authStore },
@@ -690,6 +696,86 @@ describe("§2 execution modes and the graceful non-AI path", () => {
     });
     expect(response.status).toBe(502);
     process.env.AI_LOCAL_BASE_URL = `http://127.0.0.1:${local.port}`;
+  });
+});
+
+describe("§12 AI observability", () => {
+  test("records safe per-call metadata including token counts", async () => {
+    const read = async () =>
+      (await (await fetch(`${baseUrl}/api/v1/ai/metrics`, { headers: headers() })).json()) as {
+        total: number;
+        success: number;
+        promptTokens: number;
+        completionTokens: number;
+        byFeature: Record<string, { calls: number; failures: number }>;
+        byRuntime: Record<string, number>;
+        byModel: Record<string, number>;
+        byProvider: Record<string, number>;
+        latencyMs: { count: number; p95: number };
+      };
+    const before = await read();
+    await post("text", {
+      feature: "observability-probe",
+      prompt: "Redacta un recibo de arriendo.",
+      dataClasses: ["INTERNAL"],
+      mode: "local",
+    });
+    const after = await read();
+    expect(after.total).toBe(before.total + 1);
+    expect(after.success).toBe(before.success + 1);
+    expect(after.promptTokens - before.promptTokens).toBe(42);
+    expect(after.completionTokens - before.completionTokens).toBe(7);
+    expect(after.byFeature["observability-probe"]?.calls).toBe(1);
+    expect(after.byFeature["observability-probe"]?.failures).toBe(0);
+    expect((after.byRuntime.local ?? 0) - (before.byRuntime.local ?? 0)).toBe(1);
+    expect((after.byModel["lfm2.5-1.2b"] ?? 0) - (before.byModel["lfm2.5-1.2b"] ?? 0)).toBe(1);
+    expect((after.byProvider["self-hosted"] ?? 0) - (before.byProvider["self-hosted"] ?? 0)).toBe(
+      1,
+    );
+    expect(after.latencyMs.count).toBe(after.total);
+  });
+
+  test("never exposes prompts or responses in metrics", async () => {
+    await post("text", {
+      feature: "privacy-probe",
+      prompt: "TEXTO-SECRETO-DE-PRUEBA-9137",
+      dataClasses: ["PUBLIC"],
+      mode: "local",
+    });
+    const raw = await (await fetch(`${baseUrl}/api/v1/ai/metrics`, { headers: headers() })).text();
+    expect(raw).not.toContain("TEXTO-SECRETO-DE-PRUEBA-9137");
+    expect(raw).not.toContain("Borrador local generado");
+  });
+
+  test("counts an escalation when confidence is below the threshold", async () => {
+    const before = (await (
+      await fetch(`${baseUrl}/api/v1/ai/metrics`, { headers: headers() })
+    ).json()) as { escalations: number };
+    await post("decide", {
+      feature: "maintenance-triage",
+      question: "lowconf ¿urgente?",
+      questionType: "triage",
+      dataClasses: ["PUBLIC"],
+    });
+    const after = (await (
+      await fetch(`${baseUrl}/api/v1/ai/metrics`, { headers: headers() })
+    ).json()) as { escalations: number };
+    expect(after.escalations).toBe(before.escalations + 1);
+  });
+
+  test("metrics require the ai:read permission", async () => {
+    const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "lector@ejemplo.co", password: "correct-horse-1" }),
+    });
+    const readerToken = ((await login.json()) as { accessToken: string }).accessToken;
+    const response = await fetch(`${baseUrl}/api/v1/ai/metrics`, {
+      headers: { Authorization: `Bearer ${readerToken}`, "X-Org-Id": "org-a" },
+    });
+    expect(response.status).toBe(200);
+    const anonymous = await fetch(`${baseUrl}/api/v1/ai/metrics`);
+    expect(anonymous.status).toBe(403);
   });
 });
 
