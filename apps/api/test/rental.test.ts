@@ -336,6 +336,73 @@ class FakeRentalStore implements RentalStore {
     return found;
   }
 
+  units = new Map<string, { id: string; propertyId: string }>([
+    ["unit-1", { id: "unit-1", propertyId: "prop-1" }],
+  ]);
+
+  readings = new Map<
+    string,
+    {
+      id: string;
+      unitId: string;
+      utility: string;
+      value: number;
+      readingDate: Date;
+      photoRef: string | null;
+      anomaly: boolean;
+    }
+  >();
+
+  async findUnit(unitId: string) {
+    return this.units.get(unitId) ?? null;
+  }
+
+  async lastMeterReading(unitId: string, utility: string) {
+    const rows = [...this.readings.values()]
+      .filter((row) => row.unitId === unitId && row.utility === utility)
+      .sort((a, b) => a.readingDate.getTime() - b.readingDate.getTime());
+    return rows[rows.length - 1] ?? null;
+  }
+
+  async createMeterReading(
+    unitId: string,
+    input: { utility: string; value: number; readingDate: string; photoRef?: string | null },
+  ) {
+    const previous = await this.lastMeterReading(unitId, input.utility);
+    const anomaly =
+      previous !== null &&
+      (input.value < previous.value || (previous.value > 0 && input.value > previous.value * 3));
+    const row = {
+      id: `reading-${this.readings.size + 1}`,
+      unitId,
+      utility: input.utility,
+      value: input.value,
+      readingDate: new Date(input.readingDate),
+      photoRef: input.photoRef ?? null,
+      anomaly,
+    };
+    this.readings.set(row.id, row);
+    return row;
+  }
+
+  async listMeterReadings(unitId: string, utility?: string) {
+    return [...this.readings.values()]
+      .filter((row) => row.unitId === unitId && (utility === undefined || row.utility === utility))
+      .sort((a, b) => a.readingDate.getTime() - b.readingDate.getTime());
+  }
+
+  async findMeterReading(id: string) {
+    const row = this.readings.get(id);
+    if (!row) {
+      return null;
+    }
+    const unit = this.units.get(row.unitId);
+    if (!unit) {
+      return null;
+    }
+    return { ...row, propertyId: unit.propertyId };
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -706,5 +773,72 @@ describe("rental core", () => {
     expect(result.oldRentMinor).toBe(180000000);
     expect(result.newRentMinor).toBe(185400000);
     expect(rentalStore.audits).toContain("contract.rent_increased");
+  });
+
+  test("meter readings flag anomalies and generate utility charges", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-METER",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    const read = (value: number, readingDate: string) =>
+      fetch(`${baseUrl}/api/v1/units/unit-1/meter-readings`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ utility: "WATER", value, readingDate, photoRef: "photo-1" }),
+      });
+    const first = (await (await read(100, "2026-02-01")).json()) as {
+      reading: { id: string };
+      anomaly: { anomaly: boolean };
+    };
+    expect(first.anomaly.anomaly).toBe(false);
+    const spike = (await (await read(2000, "2026-03-01")).json()) as {
+      reading: { id: string };
+      anomaly: { anomaly: boolean; reason: string | null };
+    };
+    expect(spike.anomaly.anomaly).toBe(true);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/units/unit-1/meter-readings?utility=WATER`, {
+        headers: headers(),
+      })
+    ).json()) as { id: string }[];
+    expect(listed).toHaveLength(2);
+    const unconfirmed = await fetch(
+      `${baseUrl}/api/v1/contracts/${contract.id}/charges-from-reading`,
+      {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ readingId: spike.reading.id, ratePerUnit: 500, period: "2026-03" }),
+      },
+    );
+    expect(unconfirmed.status).toBe(400);
+    const charged = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/charges-from-reading`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        readingId: spike.reading.id,
+        ratePerUnit: 500,
+        period: "2026-03",
+        confirmAnomaly: true,
+      }),
+    });
+    expect(charged.status).toBe(201);
+    const result = (await charged.json()) as {
+      consumption: number;
+      charge: { type: string; amountMinor: number };
+    };
+    expect(result.consumption).toBe(1900);
+    expect(result.charge.type).toBe("UTILITY");
+    expect(result.charge.amountMinor).toBe(95000000);
+    expect(rentalStore.audits).toContain("meter.reading_recorded");
   });
 });

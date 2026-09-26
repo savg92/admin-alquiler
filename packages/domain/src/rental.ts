@@ -279,3 +279,50 @@ export function buildRentSchedule(
   }
   return entries;
 }
+
+export interface MeterReadingInput {
+  utility: string;
+  value: number;
+  readingDate: string;
+}
+
+export function validateMeterReading(input: MeterReadingInput): void {
+  if (input.utility.trim().length === 0) {
+    throw new Error("Meter utility is required.");
+  }
+  if (typeof input.value !== "number" || !Number.isFinite(input.value) || input.value < 0) {
+    throw new Error("Meter value must be a non-negative number.");
+  }
+  if (Number.isNaN(Date.parse(input.readingDate))) {
+    throw new Error('Invalid date "readingDate".');
+  }
+}
+
+export interface AnomalyVerdict {
+  anomaly: boolean;
+  reason: string | null;
+}
+
+export function detectReadingAnomaly(
+  previousValue: number | null,
+  nextValue: number,
+): AnomalyVerdict {
+  if (previousValue === null) {
+    return { anomaly: false, reason: null };
+  }
+  if (nextValue < previousValue) {
+    return { anomaly: true, reason: "rollback: reading decreased vs previous." };
+  }
+  if (previousValue > 0 && nextValue > previousValue * 3) {
+    return { anomaly: true, reason: "spike: consumption above 3x previous reading." };
+  }
+  return { anomaly: false, reason: null };
+}
+
+export function consumptionBetween(previousValue: number, nextValue: number): number {
+  const delta = nextValue - previousValue;
+  if (delta <= 0) {
+    throw new Error("Consumption must be positive: next reading must exceed previous.");
+  }
+  return delta;
+}

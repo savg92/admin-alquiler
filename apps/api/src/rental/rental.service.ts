@@ -11,12 +11,15 @@ import {
   buildAuditEvent,
   buildRentSchedule,
   chargePaymentStatus,
+  consumptionBetween,
+  detectReadingAnomaly,
   periodDueDate,
   quoteIndemnity,
   renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
   validateIndexValue,
+  validateMeterReading,
   validateRenewalTerms,
   validateTermination,
   type IndemnityRuleId,
@@ -520,5 +523,117 @@ export class RentalService {
       }),
     );
     return { contract: updated, indexPct: index.value, oldRentMinor, newRentMinor };
+  }
+
+  async recordMeterReading(
+    orgId: string,
+    actorId: string,
+    unitId: string,
+    input: { utility: string; value: number; readingDate: string; photoRef?: string | null },
+  ) {
+    const unit = await this.store.findUnit(unitId, orgId);
+    if (!unit) {
+      throw new NotFoundException("Unit not found.");
+    }
+    try {
+      validateMeterReading(input);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid reading.");
+    }
+    const readingDate = parseDate(input.readingDate, "readingDate");
+    const previous = await this.store.lastMeterReading(unitId, input.utility.trim());
+    if (previous && readingDate < previous.readingDate) {
+      throw new BadRequestException("Reading date must be on or after the previous reading.");
+    }
+    const verdict = detectReadingAnomaly(previous?.value ?? null, input.value);
+    const created = await this.store.createMeterReading(unitId, {
+      utility: input.utility.trim(),
+      value: input.value,
+      readingDate: input.readingDate,
+      ...(input.photoRef === undefined || input.photoRef === null
+        ? {}
+        : { photoRef: input.photoRef }),
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "meter.reading_recorded",
+        entityType: "MeterReading",
+        entityId: created.id,
+        metadata: { unitId, utility: input.utility.trim(), anomaly: verdict.anomaly },
+      }),
+    );
+    return { reading: created, previousValue: previous?.value ?? null, anomaly: verdict };
+  }
+
+  async listMeterReadings(unitId: string, orgId: string, utility?: string) {
+    const unit = await this.store.findUnit(unitId, orgId);
+    if (!unit) {
+      throw new NotFoundException("Unit not found.");
+    }
+    return this.store.listMeterReadings(unitId, utility);
+  }
+
+  async chargeFromReading(
+    orgId: string,
+    actorId: string,
+    contractId: string,
+    input: { readingId: string; ratePerUnit: number; period: string; confirmAnomaly?: boolean },
+  ) {
+    const contract = await this.getContract(contractId, orgId);
+    const reading = await this.store.findMeterReading(input.readingId);
+    if (!reading || reading.propertyId !== contract.propertyId) {
+      throw new NotFoundException("Reading not found for this contract.");
+    }
+    if (!(input.ratePerUnit > 0) || !Number.isFinite(input.ratePerUnit)) {
+      throw new BadRequestException("ratePerUnit must be a positive number.");
+    }
+    let dueDate: Date;
+    try {
+      dueDate = periodDueDate(input.period);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid period.");
+    }
+    const history = await this.store.listMeterReadings(reading.unitId, reading.utility);
+    const idx = history.findIndex((row) => row.id === reading.id);
+    const prev = idx > 0 ? history[idx - 1] : undefined;
+    if (!prev) {
+      throw new BadRequestException("A previous reading is required to compute consumption.");
+    }
+    let consumption: number;
+    try {
+      consumption = consumptionBetween(prev.value, reading.value);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid reading.");
+    }
+    if (reading.anomaly && input.confirmAnomaly !== true) {
+      throw new BadRequestException("Reading is flagged anomalous: confirm explicitly to charge.");
+    }
+    const amountMinor = Math.round(consumption * input.ratePerUnit * 100);
+    if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+      throw new BadRequestException("Computed charge amount must be positive.");
+    }
+    const charge = await this.store.createCharge({
+      orgId,
+      contractId,
+      type: "UTILITY",
+      description: `${reading.utility} ${consumption} unid. → ${input.period}`,
+      amountMinor,
+      currency: contract.currency,
+      dueDate,
+      period: input.period,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "charge.generated",
+        entityType: "Charge",
+        entityId: charge.id,
+        metadata: { period: input.period, readingId: reading.id, consumption },
+      }),
+    );
+    return { charge, consumption };
   }
 }

@@ -82,7 +82,7 @@ E2E gate is green.
 - [x] Rent schedules + IPC increases (country-pluggable cap; CO DANE auto-fetch + manual correction)
 - [x] Recurring charge generation (monthly propose → preview/confirm; idempotent per contract+period)
 - [x] Charges (rent, utilities, PH cuotas + fines, adjustments)
-- [ ] Utility meter readings → charges (value, date, photo; anomaly flags)
+- [x] Utility meter readings → charges (value, date, photo; anomaly flags)
 - [x] Payments + receipts/proofs + allocations
 - [ ] Deposits (held/deducted/returned; ledger reconciles)
 - [ ] Aging report (current, 1–30, 31–60, 61–90, 90+)

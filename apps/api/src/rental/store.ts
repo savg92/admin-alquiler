@@ -87,6 +87,23 @@ export interface RentIndexRow {
   source: string;
 }
 
+export interface MeterReadingRow {
+  id: string;
+  unitId: string;
+  utility: string;
+  value: number;
+  readingDate: Date;
+  photoRef: string | null;
+  anomaly: boolean;
+}
+
+export interface MeterReadingInput {
+  utility: string;
+  value: number;
+  readingDate: string;
+  photoRef?: string | null;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -155,5 +172,10 @@ export interface RentalStore {
   }): Promise<RentIndexRow>;
   findRentIndex(country: string, period: string): Promise<RentIndexRow | null>;
   updateContractRent(id: string, rentAmountMinor: number): Promise<ContractRow>;
+  findUnit(unitId: string, orgId: string): Promise<{ id: string; propertyId: string } | null>;
+  lastMeterReading(unitId: string, utility: string): Promise<MeterReadingRow | null>;
+  createMeterReading(unitId: string, input: MeterReadingInput): Promise<MeterReadingRow>;
+  listMeterReadings(unitId: string, utility?: string): Promise<MeterReadingRow[]>;
+  findMeterReading(id: string): Promise<(MeterReadingRow & { propertyId: string }) | null>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

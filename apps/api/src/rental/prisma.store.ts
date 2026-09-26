@@ -7,6 +7,8 @@ import type {
   CodeudorRow,
   ContractInput,
   ContractRow,
+  MeterReadingInput,
+  MeterReadingRow,
   RentalStore,
 } from "./store";
 
@@ -469,6 +471,95 @@ export class PrismaRentalStore implements RentalStore {
       endDate: updated.endDate,
       rentAmountMinor: toMinor(updated.rentAmount),
       currency: updated.currency,
+    };
+  }
+
+  async findUnit(unitId: string, orgId: string) {
+    const unit = await prisma.unit.findFirst({
+      where: { id: unitId, property: { orgId } },
+      select: { id: true, propertyId: true },
+    });
+    return unit;
+  }
+
+  async lastMeterReading(unitId: string, utility: string): Promise<MeterReadingRow | null> {
+    const row = await prisma.meterReading.findFirst({
+      where: { unitId, utility },
+      orderBy: { readingDate: "desc" },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      unitId: row.unitId,
+      utility: row.utility,
+      value: row.value.toNumber(),
+      readingDate: row.readingDate,
+      photoRef: row.photoRef,
+      anomaly: row.anomaly,
+    };
+  }
+
+  async createMeterReading(unitId: string, input: MeterReadingInput): Promise<MeterReadingRow> {
+    const previous = await this.lastMeterReading(unitId, input.utility);
+    const anomaly =
+      previous !== null &&
+      (input.value < previous.value || (previous.value > 0 && input.value > previous.value * 3));
+    const created = await prisma.meterReading.create({
+      data: {
+        unitId,
+        utility: input.utility,
+        value: input.value,
+        readingDate: new Date(input.readingDate),
+        photoRef: input.photoRef ?? null,
+        anomaly,
+      },
+    });
+    return {
+      id: created.id,
+      unitId: created.unitId,
+      utility: created.utility,
+      value: created.value.toNumber(),
+      readingDate: created.readingDate,
+      photoRef: created.photoRef,
+      anomaly: created.anomaly,
+    };
+  }
+
+  async listMeterReadings(unitId: string, utility?: string): Promise<MeterReadingRow[]> {
+    const rows = await prisma.meterReading.findMany({
+      where: { unitId, ...(utility === undefined ? {} : { utility }) },
+      orderBy: { readingDate: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      unitId: row.unitId,
+      utility: row.utility,
+      value: row.value.toNumber(),
+      readingDate: row.readingDate,
+      photoRef: row.photoRef,
+      anomaly: row.anomaly,
+    }));
+  }
+
+  async findMeterReading(id: string) {
+    const row = await prisma.meterReading.findUnique({
+      where: { id },
+      include: { unit: { select: { propertyId: true } } },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      unitId: row.unitId,
+      utility: row.utility,
+      value: row.value.toNumber(),
+      readingDate: row.readingDate,
+      photoRef: row.photoRef,
+      anomaly: row.anomaly,
+      propertyId: row.unit.propertyId,
     };
   }
 

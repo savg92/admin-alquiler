@@ -682,6 +682,79 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return found;
   }
 
+  readings = new Map<
+    string,
+    {
+      id: string;
+      unitId: string;
+      utility: string;
+      value: number;
+      readingDate: Date;
+      photoRef: string | null;
+      anomaly: boolean;
+    }
+  >();
+
+  async findUnit(unitId: string, orgId: string) {
+    for (const property of this.properties.values()) {
+      if (property.orgId !== orgId) {
+        continue;
+      }
+      const unit = property.units.find((entry) => entry.id === unitId);
+      if (unit) {
+        return { id: unit.id, propertyId: property.id };
+      }
+    }
+    return null;
+  }
+
+  async lastMeterReading(unitId: string, utility: string) {
+    const rows = [...this.readings.values()]
+      .filter((row) => row.unitId === unitId && row.utility === utility)
+      .sort((a, b) => a.readingDate.getTime() - b.readingDate.getTime());
+    return rows[rows.length - 1] ?? null;
+  }
+
+  async createMeterReading(
+    unitId: string,
+    input: { utility: string; value: number; readingDate: string; photoRef?: string | null },
+  ) {
+    const previous = await this.lastMeterReading(unitId, input.utility);
+    const anomaly =
+      previous !== null &&
+      (input.value < previous.value || (previous.value > 0 && input.value > previous.value * 3));
+    const row = {
+      id: `reading-${this.readings.size + 1}`,
+      unitId,
+      utility: input.utility,
+      value: input.value,
+      readingDate: new Date(input.readingDate),
+      photoRef: input.photoRef ?? null,
+      anomaly,
+    };
+    this.readings.set(row.id, row);
+    return row;
+  }
+
+  async listMeterReadings(unitId: string, utility?: string) {
+    return [...this.readings.values()]
+      .filter((row) => row.unitId === unitId && (utility === undefined || row.utility === utility))
+      .sort((a, b) => a.readingDate.getTime() - b.readingDate.getTime());
+  }
+
+  async findMeterReading(id: string) {
+    const row = this.readings.get(id);
+    if (!row) {
+      return null;
+    }
+    for (const property of this.properties.values()) {
+      if (property.units.some((unit) => unit.id === row.unitId)) {
+        return { ...row, propertyId: property.id };
+      }
+    }
+    return null;
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

@@ -90,6 +90,39 @@ export class RentalController {
     return this.rental.getContract(id, orgIdOf(req));
   }
 
+  @Post("contracts/:id/charges-from-reading")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Generate a utility charge from a meter reading." })
+  chargeFromReading(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { readingId, ratePerUnit, period, confirmAnomaly } = body as {
+      readingId?: unknown;
+      ratePerUnit?: unknown;
+      period?: unknown;
+      confirmAnomaly?: unknown;
+    };
+    if (
+      typeof readingId !== "string" ||
+      typeof ratePerUnit !== "number" ||
+      typeof period !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (confirmAnomaly !== undefined && typeof confirmAnomaly !== "boolean") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.chargeFromReading(
+      orgIdOf(req),
+      actorIdOf(req),
+      id,
+      confirmAnomaly === undefined
+        ? { readingId, ratePerUnit, period }
+        : { readingId, ratePerUnit, period, confirmAnomaly },
+    );
+  }
+
   @Post("contracts/:id/charges:generate")
   @RequirePermission("contract:write")
   @ApiResponse({
@@ -368,5 +401,51 @@ export class RentalController {
             ...(capPct === undefined ? {} : { capPct: capPct as number }),
           },
     );
+  }
+
+  @Post("units/:unitId/meter-readings")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Record a utility meter reading with anomaly flags." })
+  recordMeterReading(
+    @Req() req: ActorRequest,
+    @Param("unitId") unitId: string,
+    @Body() body: unknown,
+  ) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { utility, value, readingDate, photoRef } = body as {
+      utility?: unknown;
+      value?: unknown;
+      readingDate?: unknown;
+      photoRef?: unknown;
+    };
+    if (
+      typeof utility !== "string" ||
+      typeof value !== "number" ||
+      typeof readingDate !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (photoRef !== undefined && photoRef !== null && typeof photoRef !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.recordMeterReading(
+      orgIdOf(req),
+      actorIdOf(req),
+      unitId,
+      photoRef === undefined || photoRef === null
+        ? { utility, value, readingDate }
+        : { utility, value, readingDate, photoRef },
+    );
+  }
+
+  @Get("units/:unitId/meter-readings")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "List meter readings for a unit." })
+  listMeterReadings(@Req() req: ActorRequest, @Param("unitId") unitId: string) {
+    const query = (req.query as Record<string, unknown> | undefined) ?? {};
+    const utility = typeof query["utility"] === "string" ? query["utility"] : undefined;
+    return this.rental.listMeterReadings(unitId, orgIdOf(req), utility);
   }
 }
