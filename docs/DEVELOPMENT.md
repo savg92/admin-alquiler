@@ -17,7 +17,22 @@ Recommended:
 git clone <repository>
 cd admin-alquiler
 bun install
-docker compose up -d
+cp .env.example .env
+```
+
+`compose.yaml` refuses to start without secrets, and nothing has a working default, so the `.env`
+step is required. Database schema and the Colombian demo dataset:
+
+```bash
+bun run --filter '@admin-alquiler/database' db:generate
+bun run --filter '@admin-alquiler/database' db:migrate
+SEED_LOCALE=es-CO bun run --filter '@admin-alquiler/database' db:seed
+```
+
+The application images in `compose.yaml` do not currently build (see the README), so run the apps on
+the host and use Compose for infrastructure only:
+
+```bash
 bun run dev
 ```
 
@@ -31,15 +46,18 @@ uv run <command>
 ## Recommended commands
 
 ```bash
-bun run dev
+bun run check            # lint + typecheck + all tests
 bun run lint
 bun run typecheck
 bun test
+bun run test:unit
+bun run test:integration # needs a reachable database
 bun run test:e2e
-bun run check
+bun run test:security
 ```
 
-The exact scripts should be defined in the repository package configuration.
+Database-backed tests skip themselves when no database is reachable, so a green `bun test` without
+infrastructure does not mean those tests ran.
 
 ## Branching
 
@@ -82,15 +100,19 @@ Use Conventional Commits where practical:
 ## Testing
 
 ### Unit
+
 Domain rules, policies, calculations and pure functions.
 
 ### Integration
+
 Database, repositories, API modules, storage and jobs.
 
 ### E2E
+
 Real user workflows through the PWA/API.
 
 ### Security
+
 Authorization, isolation, uploads, authentication and abuse scenarios.
 
 ## Definition of Done
