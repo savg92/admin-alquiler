@@ -49,17 +49,32 @@ describe.skipIf(!dbReachable)("Stage B against a real database", () => {
       select: { id: true },
     });
     expect(property).not.toBeNull();
+    const actor = await prisma.user.findUnique({
+      where: { email: "admin@ejemplo.co" },
+      select: { id: true },
+    });
+    expect(actor).not.toBeNull();
+    await prisma.settlement.deleteMany({
+      where: { propertyId: property?.id ?? "", period: "2026-02" },
+    });
     const service = new SettlementsService(new PrismaSettlementsStore());
-    const { settlement } = await service.generateSettlement(
+    const { settlement, created } = await service.generateSettlement(
       org?.id ?? "",
-      "seed",
+      actor?.id ?? "",
       property?.id ?? "",
       "2026-02",
     );
+    expect(created).toBe(true);
     expect(settlement.collectedMinor).toBe(180000000);
     expect(settlement.netMinor).toBe(settlement.collectedMinor - settlement.commissionMinor);
     expect(
       settlement.lines.map((line) => line.netMinor).reduce((total, net) => total + net, 0),
     ).toBe(settlement.netMinor);
+    const audited = await prisma.auditEvent.findFirst({
+      where: { entityType: "Settlement", entityId: settlement.id },
+      select: { actorId: true, action: true },
+    });
+    expect(audited?.action).toBe("settlement.generated");
+    expect(audited?.actorId).toBe(actor?.id ?? "");
   });
 });
