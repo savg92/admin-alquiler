@@ -140,6 +140,7 @@ class FakeCommsStore implements CommunicationsStore {
       subject: string | null;
       body: string;
       locale: string;
+      related: Record<string, unknown> | null;
     },
   ) {
     const row = {
@@ -161,6 +162,7 @@ class FakeCommsStore implements CommunicationsStore {
     subject: string | null;
     body: string;
     locale: string;
+    related: Record<string, unknown> | null;
     sentAt: Date;
   }[] = [];
 
@@ -398,5 +400,94 @@ describe("notifications and preferences", () => {
       }),
     });
     expect(allowed.status).toBe(201);
+  });
+
+  test("templates render dunning messages and email sends queue async", async () => {
+    const saved = await fetch(`${baseUrl}/api/v1/communication-templates`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        key: "dunning.day_7",
+        locale: "es-CO",
+        subject: "Cuota vencida {{periodo}}",
+        body: "Estimado {{nombre}}, la cuota {{periodo}} por {{monto}} vence pronto.",
+      }),
+    });
+    expect(saved.status).toBe(201);
+    const badKey = await fetch(`${baseUrl}/api/v1/communication-templates`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ key: "sin-puntos", locale: "es-CO", body: "Hola" }),
+    });
+    expect(badKey.status).toBe(400);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/communication-templates`, { headers: headers() })
+    ).json()) as { key: string }[];
+    expect(listed.map((row) => row.key)).toContain("dunning.day_7");
+    const missingVar = await fetch(`${baseUrl}/api/v1/communications`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        channel: "EMAIL",
+        recipients: { emails: ["a@ejemplo.co"] },
+        locale: "es-CO",
+        templateKey: "dunning.day_7",
+        templateVars: { nombre: "Ana" },
+      }),
+    });
+    expect(missingVar.status).toBe(400);
+    const sent = (await (
+      await fetch(`${baseUrl}/api/v1/communications`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          channel: "EMAIL",
+          recipients: { emails: ["a@ejemplo.co"] },
+          locale: "es-CO",
+          templateKey: "dunning.day_7",
+          templateVars: { nombre: "Ana", periodo: "2026-02", monto: "$1.800.000" },
+          related: { type: "Charge", id: "charge-1" },
+        }),
+      })
+    ).json()) as {
+      communication: { id: string; subject: string; body: string };
+      queued: { email: string; outboxId: string }[];
+    };
+    expect(sent.communication.subject).toBe("Cuota vencida 2026-02");
+    expect(sent.communication.body).toContain("Ana");
+    expect(sent.queued).toHaveLength(1);
+    const outboxId = sent.queued[0]?.outboxId ?? "";
+    expect(outboxId).not.toBe("");
+    const pending = (await (
+      await fetch(`${baseUrl}/api/v1/outbox/pending`, { headers: headers() })
+    ).json()) as { id: string; processedAt: null; attempts: number }[];
+    expect(pending.map((row) => row.id)).toContain(outboxId);
+    const failed = (await (
+      await fetch(`${baseUrl}/api/v1/outbox/${outboxId}/processed`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ error: "smtp timeout" }),
+      })
+    ).json()) as { processed: boolean };
+    expect(failed.processed).toBe(false);
+    const stillPending = (await (
+      await fetch(`${baseUrl}/api/v1/outbox/pending`, { headers: headers() })
+    ).json()) as { id: string; attempts: number }[];
+    expect(stillPending.find((row) => row.id === outboxId)?.attempts).toBe(1);
+    const done = await fetch(`${baseUrl}/api/v1/outbox/${outboxId}/processed`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({}),
+    });
+    expect(done.status).toBe(201);
+    const drained = (await (
+      await fetch(`${baseUrl}/api/v1/outbox/pending`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(drained.map((row) => row.id)).not.toContain(outboxId);
+    const records = (await (
+      await fetch(`${baseUrl}/api/v1/communications`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(records.map((row) => row.id)).toContain(sent.communication.id);
+    expect(commsStore.audits).toContain("communication.sent");
   });
 });

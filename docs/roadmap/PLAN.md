@@ -118,9 +118,9 @@ E2E gate is green.
 ### WS-8 — Communication [Stage C]
 
 - [x] In-app notifications + preferences
-- [ ] Email adapter (async, retryable; delivery state separate from communication record)
-- [ ] Communication records (sender, recipients, subject, body, locale, timestamps, related records)
-- [ ] Channel-neutral dunning/renewal templates (WhatsApp deferred to later phase)
+- [x] Email adapter (async, retryable; delivery state separate from communication record)
+- [x] Communication records (sender, recipients, subject, body, locale, timestamps, related records)
+- [x] Channel-neutral dunning/renewal templates (WhatsApp deferred to later phase)
 
 ### WS-9 — Governance [Stage D]
 

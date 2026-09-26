@@ -1,3 +1,6 @@
+-- AddColumn (related records link on communication records)
+ALTER TABLE "Communication" ADD COLUMN "related" JSONB;
+
 -- CreateTable
 CREATE TABLE "NotificationPreference" (
     "id" TEXT NOT NULL,

@@ -952,6 +952,7 @@ model Communication {
   subject    String?
   body       String
   locale     String
+  related    Json?
   sentAt     DateTime @default(now())
 
   @@index([orgId])

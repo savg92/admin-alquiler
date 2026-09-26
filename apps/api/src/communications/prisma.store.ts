@@ -130,6 +130,7 @@ export class PrismaCommunicationsStore implements CommunicationsStore {
       subject: string | null;
       body: string;
       locale: string;
+      related: Record<string, unknown> | null;
     },
   ): Promise<CommunicationRow> {
     const created = await prisma.communication.create({
@@ -140,6 +141,7 @@ export class PrismaCommunicationsStore implements CommunicationsStore {
         subject: data.subject,
         body: data.body,
         locale: data.locale,
+        ...(data.related === null ? {} : { related: toJsonInput(data.related) }),
       },
     });
     return {
@@ -149,6 +151,7 @@ export class PrismaCommunicationsStore implements CommunicationsStore {
       subject: created.subject,
       body: created.body,
       locale: created.locale,
+      related: (created.related ?? null) as Record<string, unknown> | null,
       sentAt: created.sentAt,
     };
   }
@@ -165,6 +168,7 @@ export class PrismaCommunicationsStore implements CommunicationsStore {
       subject: row.subject,
       body: row.body,
       locale: row.locale,
+      related: (row.related ?? null) as Record<string, unknown> | null,
       sentAt: row.sentAt,
     }));
   }

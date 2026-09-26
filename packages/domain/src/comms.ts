@@ -6,7 +6,7 @@ export interface TemplateDefinition {
 }
 
 export function validateTemplate(definition: TemplateDefinition): void {
-  if (!/^[a-z0-9]+(\.[a-z0-9]+)+$/.test(definition.key)) {
+  if (!/^[a-z0-9_]+(\.[a-z0-9_]+)+$/.test(definition.key)) {
     throw new Error('Template key must be dotted lowercase, e.g. "dunning.day_7".');
   }
   if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(definition.locale)) {

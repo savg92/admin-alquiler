@@ -23,6 +23,7 @@ export interface CommunicationRow {
   subject: string | null;
   body: string;
   locale: string;
+  related: Record<string, unknown> | null;
   sentAt: Date;
 }
 
@@ -78,6 +79,7 @@ export interface CommunicationsStore {
       subject: string | null;
       body: string;
       locale: string;
+      related: Record<string, unknown> | null;
     },
   ): Promise<CommunicationRow>;
   listCommunications(orgId: string): Promise<CommunicationRow[]>;
