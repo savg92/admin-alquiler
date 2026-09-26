@@ -139,6 +139,39 @@ class FakeAiStore implements AiStore {
     );
   }
 
+  seedLabeledOutcomes(input: {
+    modelId: string;
+    questionType: string;
+    correct: number;
+    incorrect: number;
+    correctConfidence: number;
+    incorrectConfidence: number;
+    days: number;
+  }): void {
+    const start = Date.now() - input.days * 86_400_000;
+    const total = input.correct + input.incorrect;
+    const push = (correct: boolean, confidence: number, index: number): void => {
+      this.observations.push({
+        id: `seed-${input.modelId}-${index}`,
+        modelId: input.modelId,
+        questionType: input.questionType,
+        confidence,
+        correct,
+        observedAt: new Date(start + (index / Math.max(1, total)) * input.days * 86_400_000),
+      });
+    };
+    for (let index = 0; index < input.correct; index += 1) {
+      push(true, input.correctConfidence, index);
+    }
+    for (let index = 0; index < input.incorrect; index += 1) {
+      push(false, input.incorrectConfidence, input.correct + index);
+    }
+  }
+
+  clearObservations(): void {
+    this.observations = [];
+  }
+
   async writeAuditEvent(event: AuditInput): Promise<void> {
     this.audits.push(event);
   }
@@ -557,8 +590,9 @@ describe("§1 decide with calibrated confidence", () => {
   });
 });
 
-describe("§9 a decide result never applies itself", () => {
-  test("a confident triage on public data needs no confirmation", async () => {
+describe("§11 the calibration gate decides whether a result may advance", () => {
+  test("a confident triage with no labeled outcomes still waits for a human", async () => {
+    aiStore.clearObservations();
     const body = (await (
       await post("decide", {
         feature: "maintenance-triage",
@@ -566,11 +600,71 @@ describe("§9 a decide result never applies itself", () => {
         questionType: "triage",
         dataClasses: ["PUBLIC"],
       })
-    ).json()) as { escalated: boolean; requiresConfirmation: boolean };
+    ).json()) as {
+      escalated: boolean;
+      requiresConfirmation: boolean;
+      autoAdvanceAllowed: boolean;
+      confirmationReason: string;
+    };
     expect(body.escalated).toBe(false);
-    expect(body.requiresConfirmation).toBe(false);
+    expect(body.autoAdvanceAllowed).toBe(false);
+    expect(body.requiresConfirmation).toBe(true);
+    expect(body.confirmationReason).toContain("Calibration gate not satisfied");
   });
 
+  test("a confident triage may advance once the gate has enough labeled evidence", async () => {
+    aiStore.seedLabeledOutcomes({
+      modelId: "laya-0.4b",
+      questionType: "triage",
+      correct: 180,
+      incorrect: 40,
+      correctConfidence: 0.95,
+      incorrectConfidence: 0.2,
+      days: 9,
+    });
+    const body = (await (
+      await post("decide", {
+        feature: "maintenance-triage",
+        question: "¿Urgente?",
+        questionType: "triage",
+        dataClasses: ["PUBLIC"],
+      })
+    ).json()) as {
+      escalated: boolean;
+      requiresConfirmation: boolean;
+      autoAdvanceAllowed: boolean;
+    };
+    expect(body.autoAdvanceAllowed).toBe(true);
+    expect(body.escalated).toBe(false);
+    expect(body.requiresConfirmation).toBe(false);
+    aiStore.clearObservations();
+  });
+
+  test("the gate never relaxes a forbidden action, even with evidence", async () => {
+    aiStore.seedLabeledOutcomes({
+      modelId: "laya-0.4b",
+      questionType: "proof-match",
+      correct: 180,
+      incorrect: 40,
+      correctConfidence: 0.95,
+      incorrectConfidence: 0.2,
+      days: 9,
+    });
+    const body = (await (
+      await post("decide", {
+        feature: "proof-match",
+        question: "¿Este comprobante corresponde al recibo?",
+        questionType: "proof-match",
+        dataClasses: ["PUBLIC"],
+      })
+    ).json()) as { requiresConfirmation: boolean; autoAdvanceAllowed: boolean };
+    expect(body.autoAdvanceAllowed).toBe(true);
+    expect(body.requiresConfirmation).toBe(true);
+    aiStore.clearObservations();
+  });
+});
+
+describe("§9 a decide result never applies itself", () => {
   test("a proof-match suggestion always waits for a human to post the payment", async () => {
     const body = (await (
       await post("decide", {

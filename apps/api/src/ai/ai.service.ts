@@ -21,10 +21,11 @@ import {
 import { buildAuditEvent } from "@admin-alquiler/domain";
 import { readAiConfig, type AiConfig } from "@admin-alquiler/config";
 import { buildDecisionAdapter } from "./decision-adapters";
+import { evaluateCalibrationGate, type GateCheck } from "./evaluation/calibration-gate";
 import { AiObservabilityService } from "./observability";
 import { ProviderAdapter } from "./provider-adapter";
 import { AI_STORE } from "./tokens";
-import type { AiStore } from "./store";
+import type { AiStore, ObservationRow } from "./store";
 
 interface TokenUsage {
   promptTokens: number | null;
@@ -48,6 +49,50 @@ const DECIDED_ACTION: Record<QuestionType, string | undefined> = {
 
 function isPrivacyLevel(value: string): value is PrivacyLevel {
   return PRIVACY_LEVELS.includes(value);
+}
+
+export interface AutoAdvanceGate {
+  allowedToAutoAdvance: boolean;
+  checks: GateCheck[];
+  reason: string;
+}
+
+export interface DecideOutcome extends DecideResult {
+  model: string;
+  runtime: RuntimeKind;
+  escalated: boolean;
+  requiresConfirmation: boolean;
+  autoAdvanceAllowed: boolean;
+  calibrationChecks: GateCheck[];
+  confirmationReason: string;
+}
+
+/**
+ * PHASE-2 §11: a `decide` result may not advance a workflow until this model has enough labeled
+ * es-CO outcomes, spread over enough days, to trust its confidence. Fails closed — an unreadable
+ * store or an empty history blocks auto-advance rather than permitting it.
+ */
+export async function evaluateAutoAdvanceGate(
+  rows: ObservationRow[],
+  questionType: QuestionType,
+): Promise<AutoAdvanceGate> {
+  const verdict = evaluateCalibrationGate(
+    questionType,
+    rows.map((row) => ({
+      confidence: row.confidence,
+      correct: row.correct,
+      observedAt: row.observedAt,
+    })),
+  );
+  const failed = verdict.checks.filter((check) => !check.passed).map((check) => check.id);
+  return {
+    allowedToAutoAdvance: verdict.allowedToAutoAdvance,
+    checks: verdict.checks,
+    reason:
+      failed.length === 0
+        ? `Calibration gate satisfied for ${questionType} on labeled outcomes.`
+        : `Calibration gate not satisfied for ${questionType}: ${failed.join(", ")}.`,
+  };
 }
 
 function providerOf(config: AiConfig, runtime: RuntimeKind | undefined): string {
@@ -179,6 +224,29 @@ export class AiService {
       },
       decideThresholds: DECIDE_THRESHOLDS,
     };
+  }
+
+  private async autoAdvanceGate(
+    modelId: string,
+    questionType: QuestionType,
+  ): Promise<AutoAdvanceGate> {
+    let rows: ObservationRow[];
+    try {
+      rows = await this.store.listObservations(modelId, questionType);
+    } catch {
+      return {
+        allowedToAutoAdvance: false,
+        checks: [
+          {
+            id: "observations-readable",
+            passed: false,
+            detail: "Labeled outcomes could not be read, so auto-advance stays off.",
+          },
+        ],
+        reason: "Calibration gate not satisfied: labeled outcomes are unreadable.",
+      };
+    }
+    return evaluateAutoAdvanceGate(rows, questionType);
   }
 
   private async auditCall(
@@ -513,27 +581,13 @@ export class AiService {
       mode?: ExecutionMode;
       temperature?: number;
     },
-  ): Promise<
-    DecideResult & {
-      model: string;
-      runtime: RuntimeKind;
-      escalated: boolean;
-      requiresConfirmation: boolean;
-    }
-  > {
+  ): Promise<DecideOutcome> {
     const started = Date.now();
     const config = this.config();
     const finish = async (
       result: DecideResult & { model: string; runtime: RuntimeKind },
       success: boolean,
-    ): Promise<
-      DecideResult & {
-        model: string;
-        runtime: RuntimeKind;
-        escalated: boolean;
-        requiresConfirmation: boolean;
-      }
-    > => {
+    ): Promise<DecideOutcome> => {
       const action = DECIDED_ACTION[input.questionType];
       const confirmation = requiresHumanConfirmation({
         feature: input.feature,
@@ -541,6 +595,7 @@ export class AiService {
         escalated: result.escalated,
         ...(action === undefined ? {} : { action }),
       });
+      const gate = await this.autoAdvanceGate(result.model, input.questionType);
       await this.auditCall(
         orgId,
         actorId,
@@ -557,7 +612,13 @@ export class AiService {
       if (result.escalated) {
         this.metrics.recordEscalation();
       }
-      return { ...result, requiresConfirmation: confirmation.requiresConfirmation };
+      return {
+        ...result,
+        requiresConfirmation: confirmation.requiresConfirmation || !gate.allowedToAutoAdvance,
+        autoAdvanceAllowed: gate.allowedToAutoAdvance,
+        calibrationChecks: gate.checks,
+        confirmationReason: gate.allowedToAutoAdvance ? confirmation.reason : gate.reason,
+      };
     };
     if (!config.enabled) {
       return finish(
