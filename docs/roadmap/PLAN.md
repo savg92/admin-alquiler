@@ -108,7 +108,7 @@ E2E gate is green.
 ### WS-7 — Operations [Stage D]
 
 - [x] Maintenance requests + work orders (evidence, costs, status history)
-- [ ] Supplier directory (providers + stores; no accounts) + purchase-place tracking per property
+- [x] Supplier directory (providers + stores; no accounts) + purchase-place tracking per property
 - [ ] Complaints + claims (configurable workflows)
 - [ ] Handovers (evidence + document generation; deposit deductions link here)
 - [ ] Insurance records (+ contract policy links from WS-4)

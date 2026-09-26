@@ -17,6 +17,38 @@ export interface WorkOrderRow {
   currency: string | null;
 }
 
+export interface SupplierRow {
+  id: string;
+  name: string;
+  category: string;
+  contact: string | null;
+  taxId: string | null;
+  address: string | null;
+  notes: string | null;
+}
+
+export interface PurchaseRow {
+  id: string;
+  propertyId: string;
+  supplierId: string | null;
+  place: string | null;
+  description: string;
+  amountMinor: number;
+  currency: string;
+  date: Date;
+  receiptRef: string | null;
+}
+
+export interface InsuranceRow {
+  id: string;
+  propertyId: string | null;
+  contractId: string | null;
+  provider: string;
+  policyRef: string;
+  validFrom: Date;
+  validUntil: Date;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -51,5 +83,46 @@ export interface OperationsStore {
     id: string,
     data: { status?: string; costMinor?: number | null; currency?: string | null },
   ): Promise<WorkOrderRow>;
+  assignWorkOrderSupplier(id: string, supplierId: string): Promise<WorkOrderRow>;
+  createSupplier(
+    orgId: string,
+    data: {
+      name: string;
+      category: string;
+      contact: string | null;
+      taxId: string | null;
+      address: string | null;
+      notes: string | null;
+    },
+  ): Promise<SupplierRow>;
+  listSuppliers(orgId: string): Promise<SupplierRow[]>;
+  findSupplier(id: string, orgId: string): Promise<SupplierRow | null>;
+  createPurchase(
+    orgId: string,
+    data: {
+      propertyId: string;
+      supplierId: string | null;
+      place: string | null;
+      description: string;
+      amountMinor: number;
+      currency: string;
+      date: Date;
+      receiptRef: string | null;
+      recordedBy: string;
+    },
+  ): Promise<PurchaseRow>;
+  listPurchases(orgId: string, propertyId?: string): Promise<PurchaseRow[]>;
+  createInsurance(
+    orgId: string,
+    data: {
+      propertyId: string | null;
+      contractId: string | null;
+      provider: string;
+      policyRef: string;
+      validFrom: Date;
+      validUntil: Date;
+    },
+  ): Promise<InsuranceRow>;
+  listInsurance(orgId: string, propertyId?: string): Promise<InsuranceRow[]>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

@@ -128,11 +128,19 @@ export class MaintenanceService {
     orgId: string,
     actorId: string,
     requestId: string,
-    input: { cost?: number; currency?: string },
+    input: { supplierId?: string; cost?: number; currency?: string },
   ) {
     const found = await this.store.findMaintenanceRequest(requestId, orgId);
     if (!found) {
       throw new NotFoundException("Maintenance request not found.");
+    }
+    let supplierId: string | null = null;
+    if (input.supplierId !== undefined) {
+      const supplier = await this.store.findSupplier(input.supplierId, orgId);
+      if (!supplier) {
+        throw new NotFoundException("Supplier not found.");
+      }
+      supplierId = supplier.id;
     }
     let costMinor: number | null = null;
     let currency: string | null = null;
@@ -147,7 +155,7 @@ export class MaintenanceService {
       currency = input.currency.toUpperCase();
     }
     const created = await this.store.createWorkOrder(requestId, {
-      supplierId: null,
+      supplierId,
       costMinor,
       currency,
     });

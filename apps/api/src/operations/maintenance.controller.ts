@@ -105,14 +105,24 @@ export class MaintenanceController {
   @RequirePermission("maintenance:write")
   @ApiResponse({ status: 201, description: "Work order created with evidence-ready costs." })
   createWorkOrder(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
-    const input: { cost?: number; currency?: string } = {};
+    const input: { supplierId?: string; cost?: number; currency?: string } = {};
     if (body !== null && typeof body === "object" && !Array.isArray(body)) {
-      const { cost, currency } = body as { cost?: unknown; currency?: unknown };
+      const { supplierId, cost, currency } = body as {
+        supplierId?: unknown;
+        cost?: unknown;
+        currency?: unknown;
+      };
+      if (supplierId !== undefined && typeof supplierId !== "string") {
+        throw new ForbiddenException("Invalid request.");
+      }
       if (cost !== undefined && typeof cost !== "number") {
         throw new ForbiddenException("Invalid request.");
       }
       if (currency !== undefined && typeof currency !== "string") {
         throw new ForbiddenException("Invalid request.");
+      }
+      if (typeof supplierId === "string") {
+        input.supplierId = supplierId;
       }
       if (typeof cost === "number") {
         input.cost = cost;

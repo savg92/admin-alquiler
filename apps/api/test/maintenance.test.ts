@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -11,10 +12,13 @@ import { PermissionsGuard } from "../src/auth/permissions.guard";
 import type { AuthStore, MembershipRow, SessionRow, UserRow } from "../src/auth/store";
 import { AUTH_CONFIG, AUTH_STORE } from "../src/auth/tokens";
 import { IdempotencyMiddleware } from "../src/idempotency/middleware";
+import { DirectoryController } from "../src/operations/directory.controller";
+import { DirectoryService } from "../src/operations/directory.service";
 import { MaintenanceController } from "../src/operations/maintenance.controller";
 import { MaintenanceService } from "../src/operations/maintenance.service";
 import type { OperationsStore } from "../src/operations/store";
 import { OPERATIONS_STORE } from "../src/operations/tokens";
+import { RentalService } from "../src/rental/rental.service";
 import { RequestIdMiddleware } from "../src/request-id.middleware";
 
 const TEST_SECRET = "test-secret-with-at-least-32-characters!!";
@@ -172,6 +176,136 @@ class FakeOperationsStore implements OperationsStore {
     return found;
   }
 
+  async assignWorkOrderSupplier(id: string, supplierId: string) {
+    const found = this.orders.find((row) => row.id === id);
+    if (!found) {
+      throw new Error("Work order not found.");
+    }
+    found.supplierId = supplierId;
+    return found;
+  }
+
+  suppliers: {
+    id: string;
+    orgId: string;
+    name: string;
+    category: string;
+    contact: string | null;
+    taxId: string | null;
+    address: string | null;
+    notes: string | null;
+  }[] = [];
+
+  async createSupplier(
+    orgId: string,
+    data: {
+      name: string;
+      category: string;
+      contact: string | null;
+      taxId: string | null;
+      address: string | null;
+      notes: string | null;
+    },
+  ) {
+    const row = { id: `sup-${this.suppliers.length + 1}`, orgId, ...data };
+    this.suppliers.push(row);
+    const { orgId: _o, ...rest } = row;
+    return rest;
+  }
+
+  async listSuppliers(orgId: string) {
+    return this.suppliers
+      .filter((row) => row.orgId === orgId)
+      .map(({ orgId: _o, ...rest }) => rest);
+  }
+
+  async findSupplier(id: string, orgId: string) {
+    const found = this.suppliers.find((row) => row.id === id && row.orgId === orgId);
+    if (!found) {
+      return null;
+    }
+    const { orgId: _o, ...rest } = found;
+    return rest;
+  }
+
+  purchases: {
+    id: string;
+    orgId: string;
+    propertyId: string;
+    supplierId: string | null;
+    place: string | null;
+    description: string;
+    amountMinor: number;
+    currency: string;
+    date: Date;
+    receiptRef: string | null;
+    recordedBy: string;
+  }[] = [];
+
+  async createPurchase(
+    orgId: string,
+    data: {
+      propertyId: string;
+      supplierId: string | null;
+      place: string | null;
+      description: string;
+      amountMinor: number;
+      currency: string;
+      date: Date;
+      receiptRef: string | null;
+      recordedBy: string;
+    },
+  ) {
+    const row = { id: `pur-${this.purchases.length + 1}`, orgId, ...data };
+    this.purchases.push(row);
+    const { orgId: _o, recordedBy: _b, ...rest } = row;
+    return rest;
+  }
+
+  async listPurchases(orgId: string, propertyId?: string) {
+    return this.purchases
+      .filter(
+        (row) => row.orgId === orgId && (propertyId === undefined || row.propertyId === propertyId),
+      )
+      .map(({ orgId: _o, recordedBy: _b, ...rest }) => rest);
+  }
+
+  insurance: {
+    id: string;
+    orgId: string;
+    propertyId: string | null;
+    contractId: string | null;
+    provider: string;
+    policyRef: string;
+    validFrom: Date;
+    validUntil: Date;
+  }[] = [];
+
+  async createInsurance(
+    orgId: string,
+    data: {
+      propertyId: string | null;
+      contractId: string | null;
+      provider: string;
+      policyRef: string;
+      validFrom: Date;
+      validUntil: Date;
+    },
+  ) {
+    const row = { id: `ins-${this.insurance.length + 1}`, orgId, ...data };
+    this.insurance.push(row);
+    const { orgId: _o, ...rest } = row;
+    return rest;
+  }
+
+  async listInsurance(orgId: string, propertyId?: string) {
+    return this.insurance
+      .filter(
+        (row) => row.orgId === orgId && (propertyId === undefined || row.propertyId === propertyId),
+      )
+      .map(({ orgId: _o, ...rest }) => rest);
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -181,15 +315,24 @@ const authStore = new FakeAuthStore();
 const operationsStore = new FakeOperationsStore();
 
 @Module({
-  controllers: [AuthController, MaintenanceController],
+  controllers: [AuthController, DirectoryController, MaintenanceController],
   providers: [
     AuthService,
+    DirectoryService,
     MaintenanceService,
     JwtAuthGuard,
     PermissionsGuard,
     { provide: AUTH_STORE, useValue: authStore },
     { provide: AUTH_CONFIG, useValue: { jwtSecret: TEST_SECRET } },
     { provide: OPERATIONS_STORE, useValue: operationsStore },
+    {
+      provide: RentalService,
+      useValue: {
+        getContract: async () => {
+          throw new NotFoundException("Contract not found.");
+        },
+      },
+    },
   ],
 })
 class MaintenanceTestModule implements NestModule {
@@ -218,7 +361,7 @@ beforeAll(async () => {
       orgId: "org-a",
       status: "ACTIVE",
       roleName: "admin",
-      permissions: ["maintenance:read", "maintenance:write"],
+      permissions: ["maintenance:read", "maintenance:write", "property:read", "property:write"],
     },
   ]);
   app = await NestFactory.create(MaintenanceTestModule, { logger: false });
@@ -328,5 +471,126 @@ describe("maintenance and work orders", () => {
     );
     expect(moved.status).toBe(201);
     expect(operationsStore.audits).toContain("maintenance.work_order_created");
+  });
+});
+
+describe("suppliers, purchases and insurance", () => {
+  test("supplier directory has no accounts, purchases track place per property", async () => {
+    const supplier = (await (
+      await fetch(`${baseUrl}/api/v1/suppliers`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          name: "Ferretería El Tornillo",
+          category: "store",
+          address: "Calle 10 #5-20",
+        }),
+      })
+    ).json()) as { id: string; category: string };
+    expect(supplier.category).toBe("store");
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/suppliers`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(listed.map((row) => row.id)).toContain(supplier.id);
+    const purchase = (await (
+      await fetch(`${baseUrl}/api/v1/purchases`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          supplierId: supplier.id,
+          place: "Ferretería El Tornillo - sede norte",
+          description: "Tubería PVC 1/2",
+          amount: 85000,
+          currency: "COP",
+          date: "2026-02-10",
+          receiptRef: "FAC-001",
+        }),
+      })
+    ).json()) as { amountMinor: number; place: string; supplierId: string };
+    expect(purchase.amountMinor).toBe(8500000);
+    expect(purchase.place).toContain("sede norte");
+    const badSupplier = await fetch(`${baseUrl}/api/v1/purchases`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        supplierId: "sup-unknown",
+        description: "X",
+        amount: 1000,
+        currency: "COP",
+        date: "2026-02-10",
+      }),
+    });
+    expect(badSupplier.status).toBe(404);
+    const perProperty = (await (
+      await fetch(`${baseUrl}/api/v1/purchases?propertyId=prop-1`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(perProperty).toHaveLength(1);
+    expect(operationsStore.audits).toContain("purchase.recorded");
+  });
+
+  test("insurance records link property and contract policies", async () => {
+    const record = (await (
+      await fetch(`${baseUrl}/api/v1/insurance`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          provider: "Sura",
+          policyRef: "POL-123",
+          validFrom: "2026-01-01",
+          validUntil: "2026-12-31",
+        }),
+      })
+    ).json()) as { id: string; policyRef: string };
+    expect(record.policyRef).toBe("POL-123");
+    const badDates = await fetch(`${baseUrl}/api/v1/insurance`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        provider: "Sura",
+        policyRef: "POL-124",
+        validFrom: "2026-12-31",
+        validUntil: "2026-01-01",
+      }),
+    });
+    expect(badDates.status).toBe(400);
+    const unknownContract = await fetch(`${baseUrl}/api/v1/insurance`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        contractId: "contract-unknown",
+        provider: "Sura",
+        policyRef: "POL-125",
+        validFrom: "2026-01-01",
+        validUntil: "2026-12-31",
+      }),
+    });
+    expect(unknownContract.status).toBe(404);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/insurance?propertyId=prop-1`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(listed.map((row) => row.id)).toContain(record.id);
+  });
+
+  test("work orders accept supplier assignment", async () => {
+    const suppliers = (await (
+      await fetch(`${baseUrl}/api/v1/suppliers`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const supplierId = suppliers[0]?.id ?? "";
+    const requests = (await (
+      await fetch(`${baseUrl}/api/v1/maintenance-requests`, { headers: headers() })
+    ).json()) as { id: string }[];
+    const requestId = requests[0]?.id ?? "";
+    const assigned = (await (
+      await fetch(`${baseUrl}/api/v1/maintenance-requests/${requestId}/work-orders/wo-1/assign`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ supplierId }),
+      })
+    ).json()) as { supplierId: string };
+    expect(assigned.supplierId).toBe(supplierId);
+    expect(operationsStore.audits).toContain("maintenance.work_order_assigned");
   });
 });

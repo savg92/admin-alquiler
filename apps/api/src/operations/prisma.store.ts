@@ -1,5 +1,13 @@
 import { prisma } from "@admin-alquiler/database";
-import type { AuditInput, MaintenanceRequestRow, OperationsStore, WorkOrderRow } from "./store";
+import type {
+  AuditInput,
+  InsuranceRow,
+  MaintenanceRequestRow,
+  OperationsStore,
+  PurchaseRow,
+  SupplierRow,
+  WorkOrderRow,
+} from "./store";
 
 function toJsonInput(value: Record<string, unknown>): object {
   return JSON.parse(JSON.stringify(value)) as object;
@@ -165,6 +173,188 @@ export class PrismaOperationsStore implements OperationsStore {
       costMinor: updated.cost === null ? null : toMinor(updated.cost),
       currency: updated.currency,
     };
+  }
+
+  async assignWorkOrderSupplier(id: string, supplierId: string): Promise<WorkOrderRow> {
+    const updated = await prisma.workOrder.update({ where: { id }, data: { supplierId } });
+    return {
+      id: updated.id,
+      requestId: updated.requestId,
+      supplierId: updated.supplierId,
+      status: updated.status,
+      costMinor: updated.cost === null ? null : toMinor(updated.cost),
+      currency: updated.currency,
+    };
+  }
+
+  async createSupplier(
+    orgId: string,
+    data: {
+      name: string;
+      category: string;
+      contact: string | null;
+      taxId: string | null;
+      address: string | null;
+      notes: string | null;
+    },
+  ): Promise<SupplierRow> {
+    const created = await prisma.supplier.create({
+      data: {
+        orgId,
+        name: data.name,
+        category: data.category,
+        contact: data.contact,
+        taxId: data.taxId,
+        address: data.address,
+        notes: data.notes,
+      },
+    });
+    return {
+      id: created.id,
+      name: created.name,
+      category: created.category,
+      contact: created.contact,
+      taxId: created.taxId,
+      address: created.address,
+      notes: created.notes,
+    };
+  }
+
+  async listSuppliers(orgId: string): Promise<SupplierRow[]> {
+    const rows = await prisma.supplier.findMany({ where: { orgId }, orderBy: { name: "asc" } });
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      contact: row.contact,
+      taxId: row.taxId,
+      address: row.address,
+      notes: row.notes,
+    }));
+  }
+
+  async findSupplier(id: string, orgId: string): Promise<SupplierRow | null> {
+    const row = await prisma.supplier.findFirst({ where: { id, orgId } });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      contact: row.contact,
+      taxId: row.taxId,
+      address: row.address,
+      notes: row.notes,
+    };
+  }
+
+  async createPurchase(
+    orgId: string,
+    data: {
+      propertyId: string;
+      supplierId: string | null;
+      place: string | null;
+      description: string;
+      amountMinor: number;
+      currency: string;
+      date: Date;
+      receiptRef: string | null;
+      recordedBy: string;
+    },
+  ): Promise<PurchaseRow> {
+    const created = await prisma.purchase.create({
+      data: {
+        orgId,
+        propertyId: data.propertyId,
+        supplierId: data.supplierId,
+        place: data.place,
+        description: data.description,
+        amount: data.amountMinor / 100,
+        currency: data.currency,
+        date: data.date,
+        receiptRef: data.receiptRef,
+        recordedBy: data.recordedBy,
+      },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      supplierId: created.supplierId,
+      place: created.place,
+      description: created.description,
+      amountMinor: toMinor(created.amount),
+      currency: created.currency,
+      date: created.date,
+      receiptRef: created.receiptRef,
+    };
+  }
+
+  async listPurchases(orgId: string, propertyId?: string): Promise<PurchaseRow[]> {
+    const rows = await prisma.purchase.findMany({
+      where: { orgId, ...(propertyId === undefined ? {} : { propertyId }) },
+      orderBy: { date: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      supplierId: row.supplierId,
+      place: row.place,
+      description: row.description,
+      amountMinor: toMinor(row.amount),
+      currency: row.currency,
+      date: row.date,
+      receiptRef: row.receiptRef,
+    }));
+  }
+
+  async createInsurance(
+    orgId: string,
+    data: {
+      propertyId: string | null;
+      contractId: string | null;
+      provider: string;
+      policyRef: string;
+      validFrom: Date;
+      validUntil: Date;
+    },
+  ): Promise<InsuranceRow> {
+    const created = await prisma.insurance.create({
+      data: {
+        orgId,
+        propertyId: data.propertyId,
+        contractId: data.contractId,
+        provider: data.provider,
+        policyRef: data.policyRef,
+        validFrom: data.validFrom,
+        validUntil: data.validUntil,
+      },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      contractId: created.contractId,
+      provider: created.provider,
+      policyRef: created.policyRef,
+      validFrom: created.validFrom,
+      validUntil: created.validUntil,
+    };
+  }
+
+  async listInsurance(orgId: string, propertyId?: string): Promise<InsuranceRow[]> {
+    const rows = await prisma.insurance.findMany({
+      where: { orgId, ...(propertyId === undefined ? {} : { propertyId }) },
+      orderBy: { validUntil: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      contractId: row.contractId,
+      provider: row.provider,
+      policyRef: row.policyRef,
+      validFrom: row.validFrom,
+      validUntil: row.validUntil,
+    }));
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {
