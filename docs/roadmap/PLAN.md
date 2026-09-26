@@ -110,7 +110,7 @@ E2E gate is green.
 - [x] Maintenance requests + work orders (evidence, costs, status history)
 - [x] Supplier directory (providers + stores; no accounts) + purchase-place tracking per property
 - [x] Complaints + claims (configurable workflows)
-- [ ] Handovers (evidence + document generation; deposit deductions link here)
+- [x] Handovers (evidence + document generation; deposit deductions link here)
 - [x] Insurance records (+ contract policy links from WS-4)
 - [x] Tax records + country-pack deadline reminders (record-only, no filing)
 - [x] Agency expenses + house rules (versioned)

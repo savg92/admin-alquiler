@@ -2,6 +2,7 @@ import { prisma } from "@admin-alquiler/database";
 import type {
   AuditInput,
   CaseRow,
+  HandoverRow,
   HouseRuleRow,
   InsuranceRow,
   MaintenanceRequestRow,
@@ -548,6 +549,99 @@ export class PrismaOperationsStore implements OperationsStore {
       version: row.version,
       body: row.body,
     }));
+  }
+
+  async createHandover(
+    orgId: string,
+    data: {
+      propertyId: string;
+      unitId: string | null;
+      contractId: string | null;
+      maintenanceId: string | null;
+      kind: string;
+      notes: string | null;
+      evidence: Record<string, unknown> | null;
+      documentId: string | null;
+      depositDeduction: { depositId: string; amountMinor: number } | null;
+      recordedBy: string;
+    },
+  ): Promise<HandoverRow> {
+    const created = await prisma.handover.create({
+      data: {
+        orgId,
+        propertyId: data.propertyId,
+        unitId: data.unitId,
+        contractId: data.contractId,
+        maintenanceId: data.maintenanceId,
+        kind: data.kind,
+        notes: data.notes,
+        ...(data.evidence === null ? {} : { evidence: toJsonInput(data.evidence) }),
+        documentId: data.documentId,
+        ...(data.depositDeduction === null
+          ? {}
+          : { depositDeduction: toJsonInput({ ...data.depositDeduction }) }),
+        recordedBy: data.recordedBy,
+      },
+    });
+    return {
+      id: created.id,
+      propertyId: created.propertyId,
+      unitId: created.unitId,
+      contractId: created.contractId,
+      maintenanceId: created.maintenanceId,
+      kind: created.kind,
+      notes: created.notes,
+      evidence: (created.evidence ?? null) as Record<string, unknown> | null,
+      documentId: created.documentId,
+      depositDeduction: (created.depositDeduction ?? null) as {
+        depositId: string;
+        amountMinor: number;
+      } | null,
+    };
+  }
+
+  async listHandovers(orgId: string, propertyId?: string): Promise<HandoverRow[]> {
+    const rows = await prisma.handover.findMany({
+      where: { orgId, ...(propertyId === undefined ? {} : { propertyId }) },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      propertyId: row.propertyId,
+      unitId: row.unitId,
+      contractId: row.contractId,
+      maintenanceId: row.maintenanceId,
+      kind: row.kind,
+      notes: row.notes,
+      evidence: (row.evidence ?? null) as Record<string, unknown> | null,
+      documentId: row.documentId,
+      depositDeduction: (row.depositDeduction ?? null) as {
+        depositId: string;
+        amountMinor: number;
+      } | null,
+    }));
+  }
+
+  async findHandover(id: string, orgId: string): Promise<HandoverRow | null> {
+    const row = await prisma.handover.findFirst({ where: { id, orgId } });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      propertyId: row.propertyId,
+      unitId: row.unitId,
+      contractId: row.contractId,
+      maintenanceId: row.maintenanceId,
+      kind: row.kind,
+      notes: row.notes,
+      evidence: (row.evidence ?? null) as Record<string, unknown> | null,
+      documentId: row.documentId,
+      depositDeduction: (row.depositDeduction ?? null) as {
+        depositId: string;
+        amountMinor: number;
+      } | null,
+    };
   }
 
   async writeAuditEvent(event: AuditInput): Promise<void> {

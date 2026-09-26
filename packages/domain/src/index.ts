@@ -116,10 +116,12 @@ export {
   canTransitionCase,
   canTransitionMaintenance,
   parseCaseStatus,
+  parseHandoverKind,
   parseMaintenancePriority,
   parseMaintenanceStatus,
   validateCaseText,
   validateCountryCode,
+  validateDepositDeductionAmount,
   validateHouseRuleBody,
   validateInsurance,
   validateMaintenanceText,
@@ -130,6 +132,7 @@ export {
 } from "./operations";
 export type {
   CaseStatus,
+  HandoverKind,
   InsuranceInput,
   MaintenancePriority,
   MaintenanceStatus,

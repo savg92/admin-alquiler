@@ -668,6 +668,14 @@ export class RentalService {
     return rows.map((row) => ({ ...row, remainingMinor: depositRemaining(row) }));
   }
 
+  async getDeposit(depositId: string, orgId: string) {
+    const found = await this.store.findDeposit(depositId, orgId);
+    if (!found) {
+      throw new NotFoundException("Deposit not found.");
+    }
+    return { ...found, remainingMinor: depositRemaining(found) };
+  }
+
   async moveDeposit(
     orgId: string,
     actorId: string,

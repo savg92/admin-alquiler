@@ -73,6 +73,19 @@ export interface HouseRuleRow {
   body: string;
 }
 
+export interface HandoverRow {
+  id: string;
+  propertyId: string;
+  unitId: string | null;
+  contractId: string | null;
+  maintenanceId: string | null;
+  kind: string;
+  notes: string | null;
+  evidence: Record<string, unknown> | null;
+  documentId: string | null;
+  depositDeduction: { depositId: string; amountMinor: number } | null;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -169,5 +182,22 @@ export interface OperationsStore {
   listTaxRecords(orgId: string, before?: Date): Promise<TaxRecordRow[]>;
   createHouseRule(propertyId: string, body: string): Promise<HouseRuleRow>;
   listHouseRules(propertyId: string): Promise<HouseRuleRow[]>;
+  createHandover(
+    orgId: string,
+    data: {
+      propertyId: string;
+      unitId: string | null;
+      contractId: string | null;
+      maintenanceId: string | null;
+      kind: string;
+      notes: string | null;
+      evidence: Record<string, unknown> | null;
+      documentId: string | null;
+      depositDeduction: { depositId: string; amountMinor: number } | null;
+      recordedBy: string;
+    },
+  ): Promise<HandoverRow>;
+  listHandovers(orgId: string, propertyId?: string): Promise<HandoverRow[]>;
+  findHandover(id: string, orgId: string): Promise<HandoverRow | null>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

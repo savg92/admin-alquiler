@@ -152,3 +152,19 @@ export function validateHouseRuleBody(body: string): string {
   }
   return body;
 }
+
+export type HandoverKind = "CHECKIN" | "CHECKOUT";
+
+export function parseHandoverKind(value: string): HandoverKind {
+  if (value !== "CHECKIN" && value !== "CHECKOUT") {
+    throw new Error('Handover kind must be "CHECKIN" or "CHECKOUT".');
+  }
+  return value;
+}
+
+export function validateDepositDeductionAmount(amount: number): number {
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Deduction amount must be a positive number.");
+  }
+  return Math.round(amount * 100);
+}

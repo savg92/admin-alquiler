@@ -14,6 +14,9 @@ import { AUTH_CONFIG, AUTH_STORE } from "../src/auth/tokens";
 import { IdempotencyMiddleware } from "../src/idempotency/middleware";
 import { DirectoryController } from "../src/operations/directory.controller";
 import { DirectoryService } from "../src/operations/directory.service";
+import { HandoverController } from "../src/operations/handover.controller";
+import { HandoverService } from "../src/operations/handover.service";
+import { DocumentsService } from "../src/documents/documents.service";
 import { CasesController } from "../src/operations/cases.controller";
 import { CasesService } from "../src/operations/cases.service";
 import { MaintenanceController } from "../src/operations/maintenance.controller";
@@ -442,6 +445,59 @@ class FakeOperationsStore implements OperationsStore {
       .sort((a, b) => a.version - b.version);
   }
 
+  handovers: {
+    id: string;
+    orgId: string;
+    propertyId: string;
+    unitId: string | null;
+    contractId: string | null;
+    maintenanceId: string | null;
+    kind: string;
+    notes: string | null;
+    evidence: Record<string, unknown> | null;
+    documentId: string | null;
+    depositDeduction: { depositId: string; amountMinor: number } | null;
+    recordedBy: string;
+  }[] = [];
+
+  async createHandover(
+    orgId: string,
+    data: {
+      propertyId: string;
+      unitId: string | null;
+      contractId: string | null;
+      maintenanceId: string | null;
+      kind: string;
+      notes: string | null;
+      evidence: Record<string, unknown> | null;
+      documentId: string | null;
+      depositDeduction: { depositId: string; amountMinor: number } | null;
+      recordedBy: string;
+    },
+  ) {
+    const row = { id: `han-${this.handovers.length + 1}`, orgId, ...data };
+    this.handovers.push(row);
+    const { orgId: _o, recordedBy: _b, ...rest } = row;
+    return rest;
+  }
+
+  async listHandovers(orgId: string, propertyId?: string) {
+    return this.handovers
+      .filter(
+        (row) => row.orgId === orgId && (propertyId === undefined || row.propertyId === propertyId),
+      )
+      .map(({ orgId: _o, recordedBy: _b, ...rest }) => rest);
+  }
+
+  async findHandover(id: string, orgId: string) {
+    const found = this.handovers.find((row) => row.id === id && row.orgId === orgId);
+    if (!found) {
+      return null;
+    }
+    const { orgId: _o, recordedBy: _b, ...rest } = found;
+    return rest;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -451,11 +507,18 @@ const authStore = new FakeAuthStore();
 const operationsStore = new FakeOperationsStore();
 
 @Module({
-  controllers: [AuthController, CasesController, DirectoryController, MaintenanceController],
+  controllers: [
+    AuthController,
+    CasesController,
+    DirectoryController,
+    HandoverController,
+    MaintenanceController,
+  ],
   providers: [
     AuthService,
     CasesService,
     DirectoryService,
+    HandoverService,
     MaintenanceService,
     JwtAuthGuard,
     PermissionsGuard,
@@ -465,9 +528,34 @@ const operationsStore = new FakeOperationsStore();
     {
       provide: RentalService,
       useValue: {
-        getContract: async () => {
-          throw new NotFoundException("Contract not found.");
+        getContract: async (id: string) => {
+          if (id !== "contract-1") {
+            throw new NotFoundException("Contract not found.");
+          }
+          return { id: "contract-1", propertyId: "prop-1" };
         },
+        getDeposit: async (id: string) => {
+          if (id !== "deposit-1") {
+            throw new NotFoundException("Deposit not found.");
+          }
+          return {
+            id: "deposit-1",
+            contractId: "contract-1",
+            heldMinor: 180000000,
+            deductedMinor: 0,
+            returnedMinor: 0,
+            remainingMinor: 180000000,
+          };
+        },
+      },
+    },
+    {
+      provide: DocumentsService,
+      useValue: {
+        createDocument: async (_orgId: string, _actorId: string, input: { title: string }) => ({
+          id: "doc-handover-1",
+          title: input.title,
+        }),
       },
     },
   ],
@@ -498,7 +586,14 @@ beforeAll(async () => {
       orgId: "org-a",
       status: "ACTIVE",
       roleName: "admin",
-      permissions: ["maintenance:read", "maintenance:write", "property:read", "property:write"],
+      permissions: [
+        "maintenance:read",
+        "maintenance:write",
+        "property:read",
+        "property:write",
+        "contract:read",
+        "contract:write",
+      ],
     },
   ]);
   app = await NestFactory.create(MaintenanceTestModule, { logger: false });
@@ -819,5 +914,60 @@ describe("complaints, claims, tax and house rules", () => {
     ).json()) as { version: number }[];
     expect(listed.map((row) => row.version)).toEqual([1, 2]);
     expect(operationsStore.audits).toContain("house_rule.published");
+  });
+});
+
+describe("handovers", () => {
+  test("records evidence, generates a document and quotes deposit deductions", async () => {
+    const created = (await (
+      await fetch(`${baseUrl}/api/v1/handovers`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          propertyId: "prop-1",
+          unitId: "unit-1",
+          contractId: "contract-1",
+          kind: "CHECKOUT",
+          notes: "Paredes en buen estado; falta una llave.",
+          evidence: { photos: ["img-1", "img-2"], meters: { water: 120 } },
+          depositDeduction: { depositId: "deposit-1", amount: 200000 },
+        }),
+      })
+    ).json()) as {
+      handover: { id: string; kind: string; documentId: string };
+      documentId: string;
+      deductionQuote: { depositId: string; amountMinor: number; remainingMinor: number };
+    };
+    expect(created.handover.kind).toBe("CHECKOUT");
+    expect(created.documentId).toBe("doc-handover-1");
+    expect(created.handover.documentId).toBe("doc-handover-1");
+    expect(created.deductionQuote.amountMinor).toBe(20000000);
+    expect(created.deductionQuote.remainingMinor).toBe(180000000);
+    const badKind = await fetch(`${baseUrl}/api/v1/handovers`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ propertyId: "prop-1", kind: "TRANSFER" }),
+    });
+    expect(badKind.status).toBe(400);
+    const overdraw = await fetch(`${baseUrl}/api/v1/handovers`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        contractId: "contract-1",
+        kind: "CHECKOUT",
+        depositDeduction: { depositId: "deposit-1", amount: 2000000 },
+      }),
+    });
+    expect(overdraw.status).toBe(400);
+    const detail = (await (
+      await fetch(`${baseUrl}/api/v1/handovers/${created.handover.id}`, { headers: headers() })
+    ).json()) as { evidence: { photos: string[] } };
+    expect(detail.evidence.photos).toEqual(["img-1", "img-2"]);
+    const listed = (await (
+      await fetch(`${baseUrl}/api/v1/handovers?propertyId=prop-1`, { headers: headers() })
+    ).json()) as { id: string }[];
+    expect(listed.map((row) => row.id)).toContain(created.handover.id);
+    expect(operationsStore.audits).toContain("handover.recorded");
   });
 });
