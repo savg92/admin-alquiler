@@ -311,6 +311,31 @@ class FakeRentalStore implements RentalStore {
     return found;
   }
 
+  indexes = new Map<
+    string,
+    { id: string; country: string; period: string; value: number; source: string }
+  >();
+
+  async upsertRentIndex(data: { country: string; period: string; value: number; source: string }) {
+    const id = `index-${data.country}-${data.period}`;
+    const row = { id, ...data };
+    this.indexes.set(id, row);
+    return row;
+  }
+
+  async findRentIndex(country: string, period: string) {
+    return this.indexes.get(`index-${country}-${period}`) ?? null;
+  }
+
+  async updateContractRent(id: string, rentAmountMinor: number) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.rentAmountMinor = rentAmountMinor;
+    return found;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -636,5 +661,50 @@ describe("rental core", () => {
     });
     expect(renewedAfter.status).toBe(400);
     expect(rentalStore.audits).toContain("contract.terminated");
+  });
+
+  test("rent schedule builds and IPC increase applies with cap", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-IPC",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    const schedule = await fetch(
+      `${baseUrl}/api/v1/contracts/${contract.id}/schedule?from=2026-02&months=3`,
+      { headers: headers() },
+    );
+    expect(schedule.status).toBe(200);
+    const entries = (await schedule.json()) as { period: string; amountMinor: number }[];
+    expect(entries.map((e) => e.period)).toEqual(["2026-02", "2026-03", "2026-04"]);
+    expect(entries[0]?.amountMinor).toBe(180000000);
+    const recorded = await fetch(`${baseUrl}/api/v1/rent-index`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ country: "CO", period: "2026-01", value: 5.2, source: "MANUAL" }),
+    });
+    expect(recorded.status).toBe(201);
+    const fetched = await fetch(`${baseUrl}/api/v1/rent-index?country=CO&period=2026-01`, {
+      headers: headers(),
+    });
+    expect(fetched.status).toBe(200);
+    const increased = await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/rent-increase`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ indexPeriod: "2026-01", country: "CO", capPct: 3 }),
+    });
+    expect(increased.status).toBe(201);
+    const result = (await increased.json()) as { oldRentMinor: number; newRentMinor: number };
+    expect(result.oldRentMinor).toBe(180000000);
+    expect(result.newRentMinor).toBe(185400000);
+    expect(rentalStore.audits).toContain("contract.rent_increased");
   });
 });

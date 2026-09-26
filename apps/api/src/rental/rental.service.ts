@@ -7,13 +7,16 @@ import {
 } from "@nestjs/common";
 import {
   allocatePayment,
+  applyIndexIncrease,
   buildAuditEvent,
+  buildRentSchedule,
   chargePaymentStatus,
   periodDueDate,
   quoteIndemnity,
   renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
+  validateIndexValue,
   validateRenewalTerms,
   validateTermination,
   type IndemnityRuleId,
@@ -409,5 +412,113 @@ export class RentalService {
   async getTermination(contractId: string, orgId: string) {
     await this.getContract(contractId, orgId);
     return this.store.getTermination(contractId);
+  }
+
+  async getSchedule(contractId: string, orgId: string, from: string, months: number) {
+    const contract = await this.getContract(contractId, orgId);
+    try {
+      return buildRentSchedule(from, months, contract.rentAmountMinor);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid schedule.");
+    }
+  }
+
+  async recordRentIndex(
+    orgId: string,
+    actorId: string,
+    input: { country: string; period: string; value: number; source: string },
+  ) {
+    const country = input.country.toUpperCase();
+    if (!/^[A-Z]{2}$/.test(country)) {
+      throw new BadRequestException("country must be an ISO 3166-1 alpha-2 code.");
+    }
+    try {
+      periodDueDate(input.period);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid period.");
+    }
+    try {
+      validateIndexValue(input.value);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid index.");
+    }
+    if (input.source !== "PROVIDER" && input.source !== "MANUAL") {
+      throw new BadRequestException('source must be "PROVIDER" or "MANUAL".');
+    }
+    const saved = await this.store.upsertRentIndex({
+      country,
+      period: input.period,
+      value: input.value,
+      source: input.source,
+      fetchedBy: actorId,
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "rent_index.recorded",
+        entityType: "RentIncreaseIndex",
+        entityId: saved.id,
+        metadata: { country, period: input.period, source: input.source },
+      }),
+    );
+    return saved;
+  }
+
+  async getRentIndex(country: string, period: string) {
+    const found = await this.store.findRentIndex(country.toUpperCase(), period);
+    if (!found) {
+      throw new NotFoundException("Index not found for country/period.");
+    }
+    return found;
+  }
+
+  async applyRentIncrease(
+    orgId: string,
+    actorId: string,
+    contractId: string,
+    input: { indexPeriod: string; country?: string; capPct?: number },
+  ) {
+    const contract = await this.getContract(contractId, orgId);
+    if (contract.status === "TERMINATED") {
+      throw new BadRequestException("Terminated contracts cannot be increased.");
+    }
+    const profile = await this.store.findOrgProfile(orgId);
+    void profile;
+    const country = (input.country ?? "CO").toUpperCase();
+    const index = await this.store.findRentIndex(country, input.indexPeriod);
+    if (!index) {
+      throw new NotFoundException("Index not found for country/period.");
+    }
+    if (input.capPct !== undefined) {
+      try {
+        validateIndexValue(input.capPct);
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : "Invalid cap.");
+      }
+    }
+    const newRentMinor = applyIndexIncrease(
+      contract.rentAmountMinor,
+      index.value,
+      ...(input.capPct === undefined ? [] : [input.capPct]),
+    );
+    const oldRentMinor = contract.rentAmountMinor;
+    const updated = await this.store.updateContractRent(contractId, newRentMinor);
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "contract.rent_increased",
+        entityType: "Contract",
+        entityId: contractId,
+        metadata: {
+          indexPeriod: input.indexPeriod,
+          indexPct: index.value,
+          oldRentMinor,
+          newRentMinor,
+        },
+      }),
+    );
+    return { contract: updated, indexPct: index.value, oldRentMinor, newRentMinor };
   }
 }

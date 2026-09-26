@@ -406,6 +406,72 @@ export class PrismaRentalStore implements RentalStore {
     };
   }
 
+  async upsertRentIndex(data: {
+    country: string;
+    period: string;
+    value: number;
+    source: string;
+    fetchedBy: string | null;
+  }) {
+    const saved = await prisma.rentIncreaseIndex.upsert({
+      where: { country_period: { country: data.country, period: data.period } },
+      create: {
+        country: data.country,
+        period: data.period,
+        value: data.value,
+        source: data.source as "PROVIDER" | "MANUAL",
+        fetchedBy: data.fetchedBy,
+      },
+      update: {
+        value: data.value,
+        source: data.source as "PROVIDER" | "MANUAL",
+        fetchedBy: data.fetchedBy,
+      },
+    });
+    return {
+      id: saved.id,
+      country: saved.country,
+      period: saved.period,
+      value: saved.value.toNumber(),
+      source: saved.source,
+    };
+  }
+
+  async findRentIndex(country: string, period: string) {
+    const row = await prisma.rentIncreaseIndex.findUnique({
+      where: { country_period: { country, period } },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      country: row.country,
+      period: row.period,
+      value: row.value.toNumber(),
+      source: row.source,
+    };
+  }
+
+  async updateContractRent(id: string, rentAmountMinor: number): Promise<ContractRow> {
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: { rentAmount: rentAmountMinor / 100 },
+    });
+    return {
+      id: updated.id,
+      orgId: updated.orgId,
+      propertyId: updated.propertyId,
+      tenantId: updated.tenantId,
+      number: updated.number,
+      status: updated.status,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      rentAmountMinor: toMinor(updated.rentAmount),
+      currency: updated.currency,
+    };
+  }
+
   async writeAuditEvent(event: AuditInput): Promise<void> {
     await prisma.auditEvent.create({
       data: {

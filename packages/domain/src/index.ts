@@ -20,6 +20,8 @@ export type {
 } from "./property-setup";
 export {
   allocatePayment,
+  applyIndexIncrease,
+  buildRentSchedule,
   chargePaymentStatus,
   expiringPolicies,
   periodDueDate,
@@ -28,6 +30,7 @@ export {
   renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
+  validateIndexValue,
   validateRenewalTerms,
   validateTermination,
 } from "./rental";
@@ -43,6 +46,7 @@ export type {
   PolicyExpiry,
   RenewalStage,
   RenewalTermsInput,
+  ScheduleEntry,
   TerminationInput,
 } from "./rental";
 export {

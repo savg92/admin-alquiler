@@ -222,3 +222,60 @@ export function quoteIndemnity(
     description: `Colombia default: ${capped} canon(es) as indemnity.`,
   };
 }
+
+export function validateIndexValue(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < -50 || value > 100) {
+    throw new Error("Index value must be a percentage between -50 and 100.");
+  }
+  return value;
+}
+
+export function applyIndexIncrease(
+  rentAmountMinor: number,
+  indexPct: number,
+  capPct?: number,
+): number {
+  if (!Number.isInteger(rentAmountMinor) || rentAmountMinor <= 0) {
+    throw new Error("rentAmountMinor must be a positive integer of minor units.");
+  }
+  validateIndexValue(indexPct);
+  const effective = capPct === undefined ? indexPct : Math.min(indexPct, capPct);
+  if (capPct !== undefined) {
+    validateIndexValue(capPct);
+  }
+  return Math.round(rentAmountMinor * (1 + effective / 100));
+}
+
+export interface ScheduleEntry {
+  period: string;
+  dueDate: string;
+  amountMinor: number;
+}
+
+export function buildRentSchedule(
+  startPeriod: string,
+  months: number,
+  rentAmountMinor: number,
+): ScheduleEntry[] {
+  if (!/^\d{4}-\d{2}$/.test(startPeriod)) {
+    throw new Error(`Invalid period "${startPeriod}". Expected "YYYY-MM".`);
+  }
+  if (!Number.isInteger(months) || months < 1 || months > 60) {
+    throw new Error("months must be an integer between 1 and 60.");
+  }
+  if (!Number.isInteger(rentAmountMinor) || rentAmountMinor <= 0) {
+    throw new Error("rentAmountMinor must be a positive integer of minor units.");
+  }
+  const [y, m] = startPeriod.split("-").map(Number) as [number, number];
+  const entries: ScheduleEntry[] = [];
+  for (let i = 0; i < months; i++) {
+    const date = new Date(Date.UTC(y, m - 1 + i, 1));
+    const period = periodKey(date);
+    entries.push({
+      period,
+      dueDate: periodDueDate(period).toISOString().slice(0, 10),
+      amountMinor: rentAmountMinor,
+    });
+  }
+  return entries;
+}

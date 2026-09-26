@@ -79,6 +79,14 @@ export interface TerminationRow {
   indemnityRef: string | null;
 }
 
+export interface RentIndexRow {
+  id: string;
+  country: string;
+  period: string;
+  value: number;
+  source: string;
+}
+
 export interface AuditInput {
   orgId?: string;
   actorId?: string;
@@ -138,5 +146,14 @@ export interface RentalStore {
     data: { noticeDate: Date; effectiveDate: Date; cause: string; indemnityRef: string | null },
   ): Promise<TerminationRow>;
   markContractTerminated(id: string): Promise<ContractRow>;
+  upsertRentIndex(data: {
+    country: string;
+    period: string;
+    value: number;
+    source: string;
+    fetchedBy: string | null;
+  }): Promise<RentIndexRow>;
+  findRentIndex(country: string, period: string): Promise<RentIndexRow | null>;
+  updateContractRent(id: string, rentAmountMinor: number): Promise<ContractRow>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

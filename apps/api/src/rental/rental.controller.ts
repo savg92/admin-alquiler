@@ -276,4 +276,97 @@ export class RentalController {
   getTermination(@Req() req: ActorRequest, @Param("id") id: string) {
     return this.rental.getTermination(id, orgIdOf(req));
   }
+
+  @Get("contracts/:id/schedule")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Rent schedule for N months from a period." })
+  getSchedule(@Req() req: ActorRequest, @Param("id") id: string) {
+    const query = (req.query as Record<string, unknown> | undefined) ?? {};
+    const from = typeof query["from"] === "string" ? query["from"] : "";
+    const months = typeof query["months"] === "string" ? Number.parseInt(query["months"], 10) : 12;
+    if (!from) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.getSchedule(id, orgIdOf(req), from, Number.isInteger(months) ? months : 12);
+  }
+
+  @Post("rent-index")
+  @RequirePermission("contract:write")
+  @ApiResponse({
+    status: 201,
+    description: "Record IPC/index value (provider fetch or manual correction).",
+  })
+  recordRentIndex(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { country, period, value, source } = body as {
+      country?: unknown;
+      period?: unknown;
+      value?: unknown;
+      source?: unknown;
+    };
+    if (
+      typeof country !== "string" ||
+      typeof period !== "string" ||
+      typeof value !== "number" ||
+      typeof source !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.recordRentIndex(orgIdOf(req), actorIdOf(req), {
+      country,
+      period,
+      value,
+      source,
+    });
+  }
+
+  @Get("rent-index")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Get IPC/index value for country/period." })
+  getRentIndex(@Req() req: ActorRequest) {
+    const query = (req.query as Record<string, unknown> | undefined) ?? {};
+    const country = typeof query["country"] === "string" ? query["country"] : "";
+    const period = typeof query["period"] === "string" ? query["period"] : "";
+    if (!country || !period) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.getRentIndex(country, period);
+  }
+
+  @Post("contracts/:id/rent-increase")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 201, description: "Apply IPC increase with country-pluggable cap." })
+  applyRentIncrease(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { indexPeriod, country, capPct } = body as {
+      indexPeriod?: unknown;
+      country?: unknown;
+      capPct?: unknown;
+    };
+    if (typeof indexPeriod !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (country !== undefined && typeof country !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (capPct !== undefined && typeof capPct !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.applyRentIncrease(
+      orgIdOf(req),
+      actorIdOf(req),
+      id,
+      country === undefined && capPct === undefined
+        ? { indexPeriod }
+        : {
+            indexPeriod,
+            ...(country === undefined ? {} : { country: country as string }),
+            ...(capPct === undefined ? {} : { capPct: capPct as number }),
+          },
+    );
+  }
 }

@@ -657,6 +657,31 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     return found;
   }
 
+  indexes = new Map<
+    string,
+    { id: string; country: string; period: string; value: number; source: string }
+  >();
+
+  async upsertRentIndex(data: { country: string; period: string; value: number; source: string }) {
+    const id = `index-${data.country}-${data.period}`;
+    const row = { id, ...data };
+    this.indexes.set(id, row);
+    return row;
+  }
+
+  async findRentIndex(country: string, period: string) {
+    return this.indexes.get(`index-${country}-${period}`) ?? null;
+  }
+
+  async updateContractRent(id: string, rentAmountMinor: number) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.rentAmountMinor = rentAmountMinor;
+    return found;
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {
