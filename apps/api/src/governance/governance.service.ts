@@ -72,7 +72,7 @@ export class GovernanceService {
         metadata: { propertyId: input.propertyId, ...quorum },
       }),
     );
-    return { ...created, ...quorum, phEnabled: property.phEnabled };
+    return { ...created, ...quorum, phAssembly: property.phEnabled };
   }
 
   async listAssemblyActs(propertyId: string, orgId: string) {
@@ -80,7 +80,8 @@ export class GovernanceService {
     if (!property) {
       throw new NotFoundException("Property not found.");
     }
-    return this.store.listAssemblyActs(propertyId);
+    const rows = await this.store.listAssemblyActs(propertyId);
+    return rows.map((row) => ({ ...row, phAssembly: property.phEnabled }));
   }
 
   private async requireAct(id: string, orgId: string) {

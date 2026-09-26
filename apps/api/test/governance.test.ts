@@ -315,9 +315,10 @@ describe("assembly acts and ownership-weighted voting", () => {
           ],
         }),
       })
-    ).json()) as { id: string; presentPct: number; quorumMet: boolean };
+    ).json()) as { id: string; presentPct: number; quorumMet: boolean; phAssembly: boolean };
     expect(act.presentPct).toBe(100);
     expect(act.quorumMet).toBe(true);
+    expect(act.phAssembly).toBe(true);
     const outsider = await fetch(`${baseUrl}/api/v1/assembly-acts`, {
       method: "POST",
       headers: headers(),
@@ -330,8 +331,9 @@ describe("assembly acts and ownership-weighted voting", () => {
     expect(outsider.status).toBe(400);
     const listed = (await (
       await fetch(`${baseUrl}/api/v1/assembly-acts?propertyId=prop-1`, { headers: headers() })
-    ).json()) as { id: string }[];
+    ).json()) as { id: string; phAssembly: boolean }[];
     expect(listed.map((row) => row.id)).toContain(act.id);
+    expect(listed.find((row) => row.id === act.id)?.phAssembly).toBe(true);
     expect(governanceStore.audits).toContain("assembly.act_recorded");
   });
 
