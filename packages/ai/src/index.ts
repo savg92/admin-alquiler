@@ -21,6 +21,7 @@ export {
   defaultPriority,
   expectedCalibrationError,
   fitTemperature,
+  resolvePermittedRuntime,
   resolveRuntime,
 } from "./pipeline";
 export type { CalibrationSample, LifecycleStage } from "./pipeline";

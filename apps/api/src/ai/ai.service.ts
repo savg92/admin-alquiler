@@ -9,6 +9,7 @@ import {
   privacyLevelFor,
   redactPersonal,
   requiresHumanConfirmation,
+  resolvePermittedRuntime,
   DECIDE_THRESHOLDS,
   type DataClass,
   type DecideResult,
@@ -115,31 +116,20 @@ export class AiService {
 
   private resolve(context: CallContext): ResolvedCall | null {
     const config = this.config();
-    if (!config.enabled || context.mode === "disabled") {
+    if (!config.enabled) {
       return null;
     }
     const level = privacyLevelFor(context.dataClasses);
-    const available = this.availability(config, context.clientWebgpu);
-    const allowed = allowedRuntimes(level, available.provider);
-    const usable = (candidate: RuntimeKind): boolean =>
-      candidate !== "disabled" && allowed.includes(candidate) && available[candidate] === true;
-    if (context.mode !== "hybrid") {
-      const pinned: RuntimeKind = context.mode;
-      if (!usable(pinned)) {
-        return null;
-      }
-      return { runtime: pinned, privacyLevel: level, model: this.pickModel(config, pinned) };
+    const runtime = resolvePermittedRuntime(
+      context.mode,
+      context.dataClasses,
+      context.priority ?? defaultPriority(),
+      this.availability(config, context.clientWebgpu),
+    );
+    if (runtime === "disabled") {
+      return null;
     }
-    for (const candidate of context.priority ?? defaultPriority()) {
-      if (usable(candidate)) {
-        return {
-          runtime: candidate,
-          privacyLevel: level,
-          model: this.pickModel(config, candidate),
-        };
-      }
-    }
-    return null;
+    return { runtime, privacyLevel: level, model: this.pickModel(config, runtime) };
   }
 
   private pickModel(config: AiConfig, runtime: RuntimeKind): string {

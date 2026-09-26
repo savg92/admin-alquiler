@@ -1,5 +1,13 @@
-import type { DecideOutput, DecideResult, ExecutionMode, QuestionType, RuntimeKind } from "./types";
+import type {
+  DataClass,
+  DecideOutput,
+  DecideResult,
+  ExecutionMode,
+  QuestionType,
+  RuntimeKind,
+} from "./types";
 import { DECIDE_THRESHOLDS } from "./types";
+import { allowedRuntimes, privacyLevelFor } from "./privacy";
 
 export function resolveRuntime(
   mode: ExecutionMode,
@@ -37,6 +45,36 @@ export function resolveRuntime(
 
 export function defaultPriority(): RuntimeKind[] {
   return ["webgpu", "local", "provider", "disabled"];
+}
+
+/**
+ * Resolves a runtime that is both available and permitted for the data class.
+ *
+ * `resolveRuntime` alone considers availability only, so a pinned `provider` mode would send
+ * local-only data to an external provider. This is the single place that applies the privacy
+ * gate, and callers that must not leak data should use it instead.
+ */
+export function resolvePermittedRuntime(
+  mode: ExecutionMode,
+  dataClasses: DataClass[],
+  priority: RuntimeKind[],
+  available: { webgpu: boolean; local: boolean; provider: boolean },
+): RuntimeKind {
+  if (mode === "disabled") {
+    return "disabled";
+  }
+  const permitted = allowedRuntimes(privacyLevelFor(dataClasses), available.provider);
+  const usable = (candidate: RuntimeKind): boolean =>
+    candidate !== "disabled" && permitted.includes(candidate) && available[candidate] === true;
+  if (mode !== "hybrid") {
+    return usable(mode) ? mode : "disabled";
+  }
+  for (const candidate of priority) {
+    if (usable(candidate)) {
+      return candidate;
+    }
+  }
+  return "disabled";
 }
 
 export function applyDecisionThreshold(
