@@ -142,6 +142,98 @@ class FakeFinanceStore implements FinanceStore {
     return { id };
   }
 
+  accounts = new Map<string, { id: string; orgId: string; code: string; name: string }>();
+  categories = new Map<string, { id: string; orgId: string; name: string }>();
+  ledger: {
+    id: string;
+    orgId: string;
+    accountId: string;
+    categoryId: string | null;
+    amountMinor: number;
+    currency: string;
+    source: string;
+    occurredAt: Date;
+    reference: string | null;
+  }[] = [];
+
+  async createAccount(orgId: string, code: string, name: string) {
+    const row = { id: `acc-${this.accounts.size + 1}`, orgId, code, name };
+    this.accounts.set(row.id, row);
+    return { id: row.id, code: row.code, name: row.name };
+  }
+
+  async listAccounts(orgId: string) {
+    return [...this.accounts.values()]
+      .filter((row) => row.orgId === orgId)
+      .map((row) => ({ id: row.id, code: row.code, name: row.name }));
+  }
+
+  async findAccount(id: string, orgId: string) {
+    const found = this.accounts.get(id);
+    if (!found || found.orgId !== orgId) {
+      return null;
+    }
+    return { id: found.id, code: found.code, name: found.name };
+  }
+
+  async isAccountCodeTaken(orgId: string, code: string) {
+    return [...this.accounts.values()].some((row) => row.orgId === orgId && row.code === code);
+  }
+
+  async createCategory(orgId: string, name: string) {
+    const row = { id: `cat-${this.categories.size + 1}`, orgId, name };
+    this.categories.set(row.id, row);
+    return { id: row.id, name: row.name };
+  }
+
+  async listCategories(orgId: string) {
+    return [...this.categories.values()]
+      .filter((row) => row.orgId === orgId)
+      .map((row) => ({ id: row.id, name: row.name }));
+  }
+
+  async findCategory(id: string, orgId: string) {
+    const found = this.categories.get(id);
+    if (!found || found.orgId !== orgId) {
+      return null;
+    }
+    return { id: found.id, name: found.name };
+  }
+
+  async isCategoryNameTaken(orgId: string, name: string) {
+    return [...this.categories.values()].some((row) => row.orgId === orgId && row.name === name);
+  }
+
+  async createLedgerTransaction(
+    orgId: string,
+    data: {
+      accountId: string;
+      categoryId: string | null;
+      amountMinor: number;
+      currency: string;
+      source: string;
+      occurredAt: Date;
+      reference: string | null;
+    },
+  ) {
+    const row = { id: `tx-${this.ledger.length + 1}`, orgId, ...data };
+    this.ledger.push(row);
+    return row;
+  }
+
+  async listLedgerTransactions(
+    orgId: string,
+    filter: { accountId?: string; from?: Date; to?: Date },
+  ) {
+    return this.ledger.filter(
+      (row) =>
+        row.orgId === orgId &&
+        (filter.accountId === undefined || row.accountId === filter.accountId) &&
+        (filter.from === undefined || row.occurredAt >= filter.from) &&
+        (filter.to === undefined || row.occurredAt < filter.to),
+    );
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -302,5 +394,87 @@ describe("finance imports", () => {
       headers: headers("org-b"),
     });
     expect(crossOrg.status).toBe(403);
+  });
+
+  test("accounts, categories and transactions enforce uniqueness and exact arithmetic", async () => {
+    const account = (await (
+      await fetch(`${baseUrl}/api/v1/accounts`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ code: "1105", name: "Caja" }),
+      })
+    ).json()) as { id: string; code: string };
+    expect(account.code).toBe("1105");
+    const duplicateAccount = await fetch(`${baseUrl}/api/v1/accounts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ code: "1105", name: "Caja otra" }),
+    });
+    expect(duplicateAccount.status).toBe(409);
+    const category = (await (
+      await fetch(`${baseUrl}/api/v1/categories`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ name: "Arriendo" }),
+      })
+    ).json()) as { id: string };
+    const duplicateCategory = await fetch(`${baseUrl}/api/v1/categories`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ name: "Arriendo" }),
+    });
+    expect(duplicateCategory.status).toBe(409);
+    const badCurrency = await fetch(`${baseUrl}/api/v1/transactions`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        accountId: account.id,
+        categoryId: category.id,
+        amount: 1800000,
+        currency: "XXX",
+        source: "canon",
+        occurredAt: "2026-02-04",
+      }),
+    });
+    expect(badCurrency.status).toBe(400);
+    const income = (await (
+      await fetch(`${baseUrl}/api/v1/transactions`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          accountId: account.id,
+          categoryId: category.id,
+          amount: 1800000.5,
+          currency: "cop",
+          source: "canon",
+          occurredAt: "2026-02-04",
+          reference: "R-1",
+        }),
+      })
+    ).json()) as { amountMinor: number; currency: string };
+    expect(income.amountMinor).toBe(180000050);
+    expect(income.currency).toBe("COP");
+    const expense = (await (
+      await fetch(`${baseUrl}/api/v1/transactions`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          accountId: account.id,
+          amount: -250000,
+          currency: "COP",
+          source: "mantenimiento",
+          occurredAt: "2026-02-06",
+        }),
+      })
+    ).json()) as { amountMinor: number };
+    expect(expense.amountMinor).toBe(-25000000);
+    const filtered = (await (
+      await fetch(
+        `${baseUrl}/api/v1/transactions?accountId=${account.id}&from=2026-02-01&to=2026-03-01`,
+        { headers: headers() },
+      )
+    ).json()) as { id: string }[];
+    expect(filtered).toHaveLength(2);
+    expect(financeStore.audits).toContain("transaction.recorded");
   });
 });

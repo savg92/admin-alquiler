@@ -99,3 +99,5 @@ export {
   validateCurrencyCode,
   validateTransferRef,
 } from "./reporting";
+export { validateAccount, validateCategoryName, validateLedgerTransaction } from "./ledger";
+export type { AccountInput, LedgerTransactionInput } from "./ledger";

@@ -91,7 +91,7 @@ E2E gate is green.
 
 ### WS-5 — Finance [Stage C]
 
-- [ ] Accounts, categories, financial transactions (exact arithmetic, ISO-4217 per record)
+- [x] Accounts, categories, financial transactions (exact arithmetic, ISO-4217 per record)
 - [x] Bank imports (Bancolombia/Davivienda maps; dedupe key; quarantine on conflict)
 - [x] Reconciliation (manual confirm with suggestions; OCR assist-only, human posts)
 - [ ] Periods + monthly/yearly statements

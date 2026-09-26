@@ -102,4 +102,112 @@ export class FinanceController {
       typeof note === "string" ? note : undefined,
     );
   }
+
+  @Post("accounts")
+  @RequirePermission("finance:write")
+  @ApiResponse({ status: 201, description: "Chart-of-accounts entry created." })
+  createAccount(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { code, name } = body as { code?: unknown; name?: unknown };
+    if (typeof code !== "string" || typeof name !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.finance.createAccount(orgIdOf(req), actorIdOf(req), code, name);
+  }
+
+  @Get("accounts")
+  @RequirePermission("finance:read")
+  @ApiResponse({ status: 200, description: "Organization chart of accounts." })
+  listAccounts(@Req() req: ActorRequest) {
+    return this.finance.listAccounts(orgIdOf(req));
+  }
+
+  @Post("categories")
+  @RequirePermission("finance:write")
+  @ApiResponse({ status: 201, description: "Transaction category created." })
+  createCategory(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { name } = body as { name?: unknown };
+    if (typeof name !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.finance.createCategory(orgIdOf(req), actorIdOf(req), name);
+  }
+
+  @Get("categories")
+  @RequirePermission("finance:read")
+  @ApiResponse({ status: 200, description: "Organization transaction categories." })
+  listCategories(@Req() req: ActorRequest) {
+    return this.finance.listCategories(orgIdOf(req));
+  }
+
+  @Post("transactions")
+  @RequirePermission("finance:write")
+  @ApiResponse({
+    status: 201,
+    description: "Financial transaction recorded with exact arithmetic.",
+  })
+  recordTransaction(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { accountId, categoryId, amount, currency, source, occurredAt, reference } = body as {
+      accountId?: unknown;
+      categoryId?: unknown;
+      amount?: unknown;
+      currency?: unknown;
+      source?: unknown;
+      occurredAt?: unknown;
+      reference?: unknown;
+    };
+    if (
+      typeof accountId !== "string" ||
+      typeof amount !== "number" ||
+      typeof currency !== "string" ||
+      typeof source !== "string" ||
+      typeof occurredAt !== "string"
+    ) {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (categoryId !== undefined && typeof categoryId !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (reference !== undefined && reference !== null && typeof reference !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.finance.recordTransaction(orgIdOf(req), actorIdOf(req), {
+      accountId,
+      amount,
+      currency,
+      source,
+      occurredAt,
+      ...(typeof categoryId === "string" ? { categoryId } : {}),
+      ...(typeof reference === "string" ? { reference } : {}),
+    });
+  }
+
+  @Get("transactions")
+  @RequirePermission("finance:read")
+  @ApiResponse({ status: 200, description: "Financial transactions with optional filters." })
+  listTransactions(
+    @Req() req: ActorRequest,
+    @Query("accountId") accountId?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.finance.listTransactions(
+      orgIdOf(req),
+      accountId === undefined && from === undefined && to === undefined
+        ? {}
+        : {
+            ...(accountId === undefined ? {} : { accountId }),
+            ...(from === undefined ? {} : { from }),
+            ...(to === undefined ? {} : { to }),
+          },
+    );
+  }
 }
