@@ -8,6 +8,9 @@ import type {
   ContractInput,
   ContractRow,
   DepositRow,
+  LateFeeRuleInput,
+  LateFeeRuleRow,
+  LateFeeScope,
   MeterReadingInput,
   MeterReadingRow,
   RentalStore,
@@ -189,6 +192,7 @@ export class PrismaRentalStore implements RentalStore {
       where: { contractId, status: { in: ["PENDING", "PARTIAL", "OVERDUE"] } },
       select: {
         id: true,
+        type: true,
         amount: true,
         dueDate: true,
         allocations: { select: { amount: true } },
@@ -199,6 +203,7 @@ export class PrismaRentalStore implements RentalStore {
       const paidMinor = row.allocations.reduce((total, item) => total + toMinor(item.amount), 0);
       return {
         id: row.id,
+        type: row.type,
         balanceMinor: toMinor(row.amount) - paidMinor,
         dueDate: row.dueDate.toISOString().slice(0, 10),
       };
@@ -630,6 +635,87 @@ export class PrismaRentalStore implements RentalStore {
       currency: updated.currency,
       deductedMinor: toMinor(updated.deducted),
       returnedMinor: toMinor(updated.returned),
+    };
+  }
+
+  async findOrgCountry(orgId: string): Promise<string | null> {
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { country: true },
+    });
+    return org?.country ?? null;
+  }
+
+  async createLateFeeRule(orgId: string, input: LateFeeRuleInput): Promise<LateFeeRuleRow> {
+    const created = await prisma.lateFeeRule.create({
+      data: {
+        scope: input.scope,
+        orgId: input.scope === "COUNTRY" ? null : orgId,
+        contractId: input.contractId ?? null,
+        rateType: input.rateType,
+        rate: input.rate,
+        graceDays: input.graceDays ?? 0,
+        base: input.base ?? "TOTAL_DUE",
+      },
+    });
+    return {
+      id: created.id,
+      scope: created.scope,
+      orgId: created.orgId,
+      contractId: created.contractId,
+      country: null,
+      rateType: created.rateType,
+      rate: created.rate.toNumber(),
+      graceDays: created.graceDays,
+      base: created.base,
+    };
+  }
+
+  async findContractLateFeeRule(contractId: string): Promise<LateFeeRuleRow | null> {
+    const row = await prisma.lateFeeRule.findFirst({
+      where: { scope: "CONTRACT", contractId },
+      orderBy: { id: "desc" },
+    });
+    return row && this.toLateFeeRow(row);
+  }
+
+  async findOrgLateFeeRule(orgId: string): Promise<LateFeeRuleRow | null> {
+    const row = await prisma.lateFeeRule.findFirst({
+      where: { scope: "ORGANIZATION", orgId },
+      orderBy: { id: "desc" },
+    });
+    return row && this.toLateFeeRow(row);
+  }
+
+  async findCountryLateFeeRule(country: string): Promise<LateFeeRuleRow | null> {
+    const row = await prisma.lateFeeRule.findFirst({
+      where: { scope: "COUNTRY", orgId: null },
+      orderBy: { id: "desc" },
+    });
+    void country;
+    return row && this.toLateFeeRow(row);
+  }
+
+  private toLateFeeRow(row: {
+    id: string;
+    scope: LateFeeScope;
+    orgId: string | null;
+    contractId: string | null;
+    rateType: "PERCENTAGE" | "FIXED";
+    rate: { toNumber(): number };
+    graceDays: number;
+    base: "TOTAL_DUE" | "RENT_ONLY";
+  }): LateFeeRuleRow {
+    return {
+      id: row.id,
+      scope: row.scope,
+      orgId: row.orgId,
+      contractId: row.contractId,
+      country: null,
+      rateType: row.rateType,
+      rate: row.rate.toNumber(),
+      graceDays: row.graceDays,
+      base: row.base,
     };
   }
 

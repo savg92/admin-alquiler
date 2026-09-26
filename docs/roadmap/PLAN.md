@@ -86,7 +86,7 @@ E2E gate is green.
 - [x] Payments + receipts/proofs + allocations
 - [x] Deposits (held/deducted/returned; ledger reconciles)
 - [x] Aging report (current, 1–30, 31–60, 61–90, 90+)
-- [ ] Late-fee evaluation (configurable rule; Colombia national default)
+- [x] Late-fee evaluation (configurable rule; Colombia national default)
 - [ ] Dunning events (3/7/15/30 days; in-app + email; channel-neutral templates)
 
 ### WS-5 — Finance [Stage C]

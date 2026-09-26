@@ -509,6 +509,7 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
       .filter((charge) => charge.contractId === contractId && charge.status !== "PAID")
       .map((charge) => ({
         id: charge.id,
+        type: charge.type,
         balanceMinor: charge.amountMinor - charge.allocatedMinor,
         dueDate: charge.dueDate.toISOString().slice(0, 10),
       }));
@@ -796,6 +797,65 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
     found.deductedMinor = deductedMinor;
     found.returnedMinor = returnedMinor;
     return found;
+  }
+
+  lateFeeRules: {
+    id: string;
+    scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+    orgId: string | null;
+    contractId: string | null;
+    country: string | null;
+    rateType: "PERCENTAGE" | "FIXED";
+    rate: number;
+    graceDays: number;
+    base: "TOTAL_DUE" | "RENT_ONLY";
+  }[] = [];
+
+  async findOrgCountry() {
+    return "CO";
+  }
+
+  async createLateFeeRule(
+    orgId: string,
+    input: {
+      scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+      contractId?: string;
+      rateType: "PERCENTAGE" | "FIXED";
+      rate: number;
+      graceDays?: number;
+      base?: "TOTAL_DUE" | "RENT_ONLY";
+    },
+  ) {
+    const row = {
+      id: `rule-${this.lateFeeRules.length + 1}`,
+      scope: input.scope,
+      orgId: input.scope === "COUNTRY" ? null : orgId,
+      contractId: input.contractId ?? null,
+      country: null,
+      rateType: input.rateType,
+      rate: input.rate,
+      graceDays: input.graceDays ?? 0,
+      base: input.base ?? ("TOTAL_DUE" as const),
+    };
+    this.lateFeeRules.push(row);
+    return row;
+  }
+
+  async findContractLateFeeRule(contractId: string) {
+    return (
+      this.lateFeeRules.find((row) => row.scope === "CONTRACT" && row.contractId === contractId) ??
+      null
+    );
+  }
+
+  async findOrgLateFeeRule(orgId: string) {
+    return (
+      this.lateFeeRules.find((row) => row.scope === "ORGANIZATION" && row.orgId === orgId) ?? null
+    );
+  }
+
+  async findCountryLateFeeRule() {
+    return this.lateFeeRules.find((row) => row.scope === "COUNTRY") ?? null;
   }
 
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {

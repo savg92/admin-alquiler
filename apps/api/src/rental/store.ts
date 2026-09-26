@@ -35,6 +35,7 @@ export interface ChargeRow {
 
 export interface ChargeBalanceInput {
   id: string;
+  type: string;
   balanceMinor: number;
   dueDate: string;
 }
@@ -111,6 +112,30 @@ export interface DepositRow {
   currency: string;
   deductedMinor: number;
   returnedMinor: number;
+}
+
+export type LateFeeScope = "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+
+export interface LateFeeRuleRow {
+  id: string;
+  scope: LateFeeScope;
+  orgId: string | null;
+  contractId: string | null;
+  country: string | null;
+  rateType: "PERCENTAGE" | "FIXED";
+  rate: number;
+  graceDays: number;
+  base: "TOTAL_DUE" | "RENT_ONLY";
+}
+
+export interface LateFeeRuleInput {
+  scope: LateFeeScope;
+  contractId?: string;
+  country?: string;
+  rateType: "PERCENTAGE" | "FIXED";
+  rate: number;
+  graceDays?: number;
+  base?: "TOTAL_DUE" | "RENT_ONLY";
 }
 
 export interface AuditInput {
@@ -190,5 +215,10 @@ export interface RentalStore {
   listDeposits(contractId: string): Promise<DepositRow[]>;
   findDeposit(id: string, orgId: string): Promise<(DepositRow & { contractId: string }) | null>;
   adjustDeposit(id: string, deductedMinor: number, returnedMinor: number): Promise<DepositRow>;
+  findOrgCountry(orgId: string): Promise<string | null>;
+  createLateFeeRule(orgId: string, input: LateFeeRuleInput): Promise<LateFeeRuleRow>;
+  findContractLateFeeRule(contractId: string): Promise<LateFeeRuleRow | null>;
+  findOrgLateFeeRule(orgId: string): Promise<LateFeeRuleRow | null>;
+  findCountryLateFeeRule(country: string): Promise<LateFeeRuleRow | null>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }

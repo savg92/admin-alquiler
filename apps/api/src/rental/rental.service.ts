@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  COLOMBIA_DEFAULT_LATE_FEE,
   agingReport,
   allocatePayment,
   applyIndexIncrease,
@@ -15,6 +16,7 @@ import {
   consumptionBetween,
   depositRemaining,
   detectReadingAnomaly,
+  evaluateLateFee,
   periodDueDate,
   quoteIndemnity,
   renewalStage,
@@ -22,6 +24,7 @@ import {
   validateContractTerms,
   validateDepositMovement,
   validateIndexValue,
+  validateLateFeeRule,
   validateMeterReading,
   validateRenewalTerms,
   validateTermination,
@@ -704,5 +707,105 @@ export class RentalService {
     const now = asOf ? parseDate(asOf, "asOf").getTime() : Date.now();
     const buckets = agingReport(balances, now);
     return { contractId, balances, buckets };
+  }
+
+  async configureLateFeeRule(
+    orgId: string,
+    actorId: string,
+    input: {
+      scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+      contractId?: string;
+      rateType: "PERCENTAGE" | "FIXED";
+      rate: number;
+      graceDays?: number;
+      base?: "TOTAL_DUE" | "RENT_ONLY";
+    },
+  ) {
+    if (input.scope === "CONTRACT") {
+      if (!input.contractId) {
+        throw new BadRequestException("contractId is required for CONTRACT scope.");
+      }
+      await this.getContract(input.contractId, orgId);
+    } else if (input.contractId) {
+      throw new BadRequestException("contractId is only valid for CONTRACT scope.");
+    }
+    try {
+      validateLateFeeRule({
+        rateType: input.rateType,
+        rate: input.rate,
+        graceDays: input.graceDays ?? 0,
+        base: input.base ?? "TOTAL_DUE",
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid rule.");
+    }
+    const created = await this.store.createLateFeeRule(
+      orgId,
+      input.contractId === undefined && input.graceDays === undefined && input.base === undefined
+        ? {
+            scope: input.scope,
+            rateType: input.rateType,
+            rate: input.rate,
+          }
+        : {
+            scope: input.scope,
+            rateType: input.rateType,
+            rate: input.rate,
+            ...(input.contractId === undefined ? {} : { contractId: input.contractId }),
+            ...(input.graceDays === undefined ? {} : { graceDays: input.graceDays }),
+            ...(input.base === undefined ? {} : { base: input.base }),
+          },
+    );
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "late_fee.rule_configured",
+        entityType: "LateFeeRule",
+        entityId: created.id,
+        metadata: { scope: input.scope },
+      }),
+    );
+    return created;
+  }
+
+  async evaluateLateFee(contractId: string, orgId: string, asOf?: string) {
+    const contract = await this.getContract(contractId, orgId);
+    const now = asOf ? parseDate(asOf, "asOf").getTime() : Date.now();
+    const balances = await this.store.pendingChargeBalances(contractId);
+    const contractRule = await this.store.findContractLateFeeRule(contractId);
+    const orgRule = contractRule ? null : await this.store.findOrgLateFeeRule(orgId);
+    const country = await this.store.findOrgCountry(orgId);
+    const countryRule =
+      contractRule || orgRule || country !== "CO"
+        ? null
+        : await this.store.findCountryLateFeeRule("CO");
+    const active = contractRule ?? orgRule ?? countryRule;
+    const rule =
+      active === null || active === undefined
+        ? { ...COLOMBIA_DEFAULT_LATE_FEE }
+        : {
+            rateType: active.rateType,
+            rate: active.rate,
+            graceDays: active.graceDays,
+            base: active.base,
+          };
+    const lines = balances.map((balance) => {
+      const due = Date.parse(balance.dueDate);
+      const daysOverdue = Number.isNaN(due) ? 0 : Math.floor((now - due) / 86_400_000);
+      const inScope = rule.base === "TOTAL_DUE" || balance.type === "RENT";
+      const quote = inScope
+        ? evaluateLateFee(balance.balanceMinor, daysOverdue, rule)
+        : { applied: false, feeMinor: 0, daysOverdue };
+      return { chargeId: balance.id, balanceMinor: balance.balanceMinor, ...quote };
+    });
+    const totalMinor = lines.reduce((total, line) => total + line.feeMinor, 0);
+    return {
+      contractId,
+      currency: contract.currency,
+      rule: { ...rule, source: active ? active.scope : "COLOMBIA_DEFAULT" },
+      lines,
+      totalMinor,
+    };
   }
 }

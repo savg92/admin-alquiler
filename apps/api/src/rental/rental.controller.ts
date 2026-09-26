@@ -508,4 +508,77 @@ export class RentalController {
       ? this.rental.getAging(id, orgIdOf(req))
       : this.rental.getAging(id, orgIdOf(req), asOf);
   }
+
+  @Post("late-fee-rules")
+  @RequirePermission("contract:write")
+  @ApiResponse({
+    status: 201,
+    description: "Configure a late-fee rule (country/org/contract scope).",
+  })
+  configureLateFeeRule(@Req() req: ActorRequest, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { scope, contractId, rateType, rate, graceDays, base } = body as {
+      scope?: unknown;
+      contractId?: unknown;
+      rateType?: unknown;
+      rate?: unknown;
+      graceDays?: unknown;
+      base?: unknown;
+    };
+    if (scope !== "COUNTRY" && scope !== "ORGANIZATION" && scope !== "CONTRACT") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (contractId !== undefined && typeof contractId !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (rateType !== "PERCENTAGE" && rateType !== "FIXED") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (typeof rate !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (graceDays !== undefined && typeof graceDays !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (base !== undefined && base !== "TOTAL_DUE" && base !== "RENT_ONLY") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.configureLateFeeRule(
+      orgIdOf(req),
+      actorIdOf(req),
+      (() => {
+        const baseInput = { scope, rateType, rate } as {
+          scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+          rateType: "PERCENTAGE" | "FIXED";
+          rate: number;
+          contractId?: string;
+          graceDays?: number;
+          base?: "TOTAL_DUE" | "RENT_ONLY";
+        };
+        if (typeof contractId === "string") {
+          baseInput.contractId = contractId;
+        }
+        if (typeof graceDays === "number") {
+          baseInput.graceDays = graceDays;
+        }
+        if (base === "TOTAL_DUE" || base === "RENT_ONLY") {
+          baseInput.base = base;
+        }
+        return baseInput;
+      })(),
+    );
+  }
+
+  @Get("contracts/:id/late-fee")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Evaluate late fees for pending charges." })
+  evaluateLateFee(@Req() req: ActorRequest, @Param("id") id: string) {
+    const query = (req.query as Record<string, unknown> | undefined) ?? {};
+    const asOf = typeof query["asOf"] === "string" ? query["asOf"] : undefined;
+    return asOf === undefined
+      ? this.rental.evaluateLateFee(id, orgIdOf(req))
+      : this.rental.evaluateLateFee(id, orgIdOf(req), asOf);
+  }
 }

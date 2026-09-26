@@ -173,6 +173,7 @@ class FakeRentalStore implements RentalStore {
       .filter((charge) => charge.contractId === contractId && charge.status !== "PAID")
       .map((charge) => ({
         id: charge.id,
+        type: charge.type,
         balanceMinor: charge.amountMinor - charge.allocatedMinor,
         dueDate: charge.dueDate.toISOString().slice(0, 10),
       }));
@@ -444,6 +445,65 @@ class FakeRentalStore implements RentalStore {
     found.deductedMinor = deductedMinor;
     found.returnedMinor = returnedMinor;
     return found;
+  }
+
+  lateFeeRules: {
+    id: string;
+    scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+    orgId: string | null;
+    contractId: string | null;
+    country: string | null;
+    rateType: "PERCENTAGE" | "FIXED";
+    rate: number;
+    graceDays: number;
+    base: "TOTAL_DUE" | "RENT_ONLY";
+  }[] = [];
+
+  async findOrgCountry() {
+    return "CO";
+  }
+
+  async createLateFeeRule(
+    orgId: string,
+    input: {
+      scope: "COUNTRY" | "ORGANIZATION" | "CONTRACT";
+      contractId?: string;
+      rateType: "PERCENTAGE" | "FIXED";
+      rate: number;
+      graceDays?: number;
+      base?: "TOTAL_DUE" | "RENT_ONLY";
+    },
+  ) {
+    const row = {
+      id: `rule-${this.lateFeeRules.length + 1}`,
+      scope: input.scope,
+      orgId: input.scope === "COUNTRY" ? null : orgId,
+      contractId: input.contractId ?? null,
+      country: null,
+      rateType: input.rateType,
+      rate: input.rate,
+      graceDays: input.graceDays ?? 0,
+      base: input.base ?? ("TOTAL_DUE" as const),
+    };
+    this.lateFeeRules.push(row);
+    return row;
+  }
+
+  async findContractLateFeeRule(contractId: string) {
+    return (
+      this.lateFeeRules.find((row) => row.scope === "CONTRACT" && row.contractId === contractId) ??
+      null
+    );
+  }
+
+  async findOrgLateFeeRule(orgId: string) {
+    return (
+      this.lateFeeRules.find((row) => row.scope === "ORGANIZATION" && row.orgId === orgId) ?? null
+    );
+  }
+
+  async findCountryLateFeeRule() {
+    return this.lateFeeRules.find((row) => row.scope === "COUNTRY") ?? null;
   }
 
   async writeAuditEvent(event: { action: string }): Promise<void> {
@@ -984,5 +1044,63 @@ describe("rental core", () => {
     expect(monthLate.buckets.d31_60Minor).toBe(180000000);
     const old = await agingAt("2026-06-01");
     expect(old.buckets.d90PlusMinor).toBe(180000000);
+  });
+
+  test("late fees evaluate with Colombia default and configured rules", async () => {
+    const created = await fetch(`${baseUrl}/api/v1/contracts`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        propertyId: "prop-1",
+        tenantId: "tenant-1",
+        number: "C-2026-LATE",
+        startDate: "2026-02-01",
+        endDate: "2027-01-31",
+        rentAmount: 1800000,
+      }),
+    });
+    expect(created.status).toBe(201);
+    const contract = (await created.json()) as { id: string };
+    await fetch(`${baseUrl}/api/v1/contracts/${contract.id}/charges:generate`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ period: "2026-02" }),
+    });
+    const evaluate = (asOf: string) =>
+      fetch(`${baseUrl}/api/v1/contracts/${contract.id}/late-fee?asOf=${asOf}`, {
+        headers: headers(),
+      });
+    const fallback = (await (await evaluate("2026-03-10")).json()) as {
+      rule: { source: string; rate: number };
+      totalMinor: number;
+    };
+    expect(fallback.rule.source).toBe("COLOMBIA_DEFAULT");
+    expect(fallback.rule.rate).toBe(1.5);
+    expect(fallback.totalMinor).toBe(2700000);
+    const configured = await fetch(`${baseUrl}/api/v1/late-fee-rules`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        scope: "ORGANIZATION",
+        rateType: "PERCENTAGE",
+        rate: 2,
+        graceDays: 5,
+        base: "TOTAL_DUE",
+      }),
+    });
+    expect(configured.status).toBe(201);
+    const overridden = (await (await evaluate("2026-03-10")).json()) as {
+      rule: { source: string };
+      totalMinor: number;
+    };
+    expect(overridden.rule.source).toBe("ORGANIZATION");
+    expect(overridden.totalMinor).toBe(3600000);
+    const inGrace = (await (await evaluate("2026-02-07")).json()) as {
+      lines: { applied: boolean; feeMinor: number }[];
+      totalMinor: number;
+    };
+    expect(inGrace.totalMinor).toBe(0);
+    expect(inGrace.lines[0]?.applied).toBe(false);
+    expect(rentalStore.audits).toContain("late_fee.rule_configured");
   });
 });

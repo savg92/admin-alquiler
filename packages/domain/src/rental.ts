@@ -391,3 +391,71 @@ export function agingReport(items: AgingItem[], now: number = Date.now()): Aging
   }
   return buckets;
 }
+
+export type LateFeeRateType = "PERCENTAGE" | "FIXED";
+export type LateFeeBase = "TOTAL_DUE" | "RENT_ONLY";
+
+export interface LateFeeRuleInput {
+  rateType: LateFeeRateType;
+  rate: number;
+  graceDays: number;
+  base: LateFeeBase;
+}
+
+export function validateLateFeeRule(input: LateFeeRuleInput): void {
+  if (input.rateType !== "PERCENTAGE" && input.rateType !== "FIXED") {
+    throw new Error('rateType must be "PERCENTAGE" or "FIXED".');
+  }
+  if (!Number.isFinite(input.rate) || input.rate <= 0) {
+    throw new Error("Late-fee rate must be a positive number.");
+  }
+  if (input.rateType === "PERCENTAGE" && input.rate > 100) {
+    throw new Error("Percentage late-fee rate must not exceed 100.");
+  }
+  if (!Number.isInteger(input.graceDays) || input.graceDays < 0 || input.graceDays > 365) {
+    throw new Error("graceDays must be an integer between 0 and 365.");
+  }
+  if (input.base !== "TOTAL_DUE" && input.base !== "RENT_ONLY") {
+    throw new Error('base must be "TOTAL_DUE" or "RENT_ONLY".');
+  }
+}
+
+/**
+ * Shipped starting point for Colombian organizations: 1.5% monthly on the
+ * total due, no grace period. This is a configurable default, not legal
+ * advice — organizations must confirm their moratory rate with their
+ * accountant. Overridable per organization or per contract.
+ */
+export const COLOMBIA_DEFAULT_LATE_FEE: LateFeeRuleInput = {
+  rateType: "PERCENTAGE",
+  rate: 1.5,
+  graceDays: 0,
+  base: "TOTAL_DUE",
+};
+
+export interface LateFeeQuote {
+  applied: boolean;
+  feeMinor: number;
+  daysOverdue: number;
+}
+
+export function evaluateLateFee(
+  balanceMinor: number,
+  daysOverdue: number,
+  rule: LateFeeRuleInput,
+): LateFeeQuote {
+  if (!Number.isInteger(balanceMinor) || balanceMinor < 0) {
+    throw new Error("balanceMinor must be a non-negative integer of minor units.");
+  }
+  if (!Number.isInteger(daysOverdue)) {
+    throw new Error("daysOverdue must be an integer.");
+  }
+  validateLateFeeRule(rule);
+  if (balanceMinor === 0 || daysOverdue <= rule.graceDays) {
+    return { applied: false, feeMinor: 0, daysOverdue };
+  }
+  if (rule.rateType === "FIXED") {
+    return { applied: true, feeMinor: Math.round(rule.rate * 100), daysOverdue };
+  }
+  return { applied: true, feeMinor: Math.round((balanceMinor * rule.rate) / 100), daysOverdue };
+}
