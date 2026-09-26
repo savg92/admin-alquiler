@@ -131,9 +131,9 @@ E2E gate is green.
 
 ### WS-10 — PWA/offline [Stage D]
 
-- [ ] Mobile-first responsive UI + installability
-- [ ] Service worker with safe caching
-- [ ] Offline queue foundation + sync conflict strategy
+- [x] Mobile-first responsive UI + installability
+- [x] Service worker with safe caching
+- [x] Offline queue foundation + sync conflict strategy
 - [ ] Camera/photo upload workflows (proofs, meters, maintenance, properties)
 - [ ] Self-service portals (same PWA, role-guarded: tenant upload/track; owner view-only P&L)
 
