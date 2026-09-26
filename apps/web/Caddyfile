@@ -1,0 +1,9 @@
+:80 {
+  root * /srv/web
+
+  # Client-side routes have no file on disk. Without this fallback a deep route
+  # like /properties 404s instead of booting the shell and letting the router
+  # resolve it, and / would fall through to Caddy's placeholder page.
+  try_files {path} /index.html
+  file_server
+}

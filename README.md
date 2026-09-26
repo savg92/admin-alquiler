@@ -102,9 +102,29 @@ A `migrate` service applies migrations before the API starts, so `docker compose
 empty volume. `postgres`, `redis`, `minio`, `api` and `worker` all come up healthy.
 
 Caddy is the only service that publishes the application itself, and it bind-mounts
-`infrastructure/caddy/Caddyfile`. On macOS, if the repository lives under a protected folder
-(`~/Desktop`, `~/Documents`, `~/Downloads`), Docker Desktop cannot read that mount and Caddy exits
-with `reading config from file: … operation not permitted`. Grant Docker Desktop file access to the
+`infrastructure/caddy/Caddyfile`. Verify the stack through the ingress — the `api` container does not
+publish a host port, so `:3001` is only reachable for a host-run app:
+
+```bash
+curl localhost:8080/health          # {"status":"ok","service":"api"}
+curl localhost:8080/ready           # per-dependency status
+curl localhost:8080/                # the PWA shell
+```
+
+Routing is explicit in the Caddyfile: `/health`, `/ready` and `/api/*` go to the API, and everything
+else is proxied to the `web` container, which serves the built SPA. `apps/web/Caddyfile` sets that
+container's root and adds the `try_files` fallback, so client-side routes such as `/properties`
+return the shell instead of 404ing.
+
+Editing a Caddyfile needs a restart — the bind mount does not trigger a reload:
+
+```bash
+docker compose restart caddy
+```
+
+On macOS, if the repository lives under a protected folder (`~/Desktop`, `~/Documents`,
+`~/Downloads`), Docker Desktop cannot read that mount and Caddy exits with
+`reading config from file: … operation not permitted`. Grant Docker Desktop file access to the
 project path, or move the project somewhere unrestricted.
 
 Until then, run the applications on the host (`bun run dev`) against the Compose infrastructure —

@@ -19,11 +19,9 @@
     reverse_proxy api:3001
   }
 
-  # Everything else is the SPA. Mutually exclusive handle blocks keep the API routes
-  # from depending on where `try_files` happens to sort.
+  # Everything else is the SPA. It is proxied rather than served from disk because
+  # the built assets live in the web image, not in this container.
   handle {
-    root * /srv/web
-    try_files {path} /index.html
-    file_server
+    reverse_proxy web:80
   }
 }

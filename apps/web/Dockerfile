@@ -10,3 +10,4 @@ RUN bun run --filter '@admin-alquiler/web' build
 
 FROM caddy:2-alpine AS runtime
 COPY --from=build /app/apps/web/dist /srv/web
+COPY --from=build /app/apps/web/Caddyfile /etc/caddy/Caddyfile

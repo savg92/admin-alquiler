@@ -9,6 +9,10 @@ import { setupOpenApi } from "../src/openapi";
 let app: INestApplication;
 let baseUrl: string;
 
+function ingress(relativePath: string): Promise<string> {
+  return Bun.file(new URL(`../../../${relativePath}`, import.meta.url)).text();
+}
+
 beforeAll(async () => {
   app = await NestFactory.create(AppModule, { logger: false });
   setupOpenApi(app);
@@ -49,13 +53,22 @@ describe("WS-12 reliability endpoints", () => {
     expect("/api/v1/queues" in body.paths).toBe(true);
   });
   test("the public ingress routes the root probes to the API, not the SPA", async () => {
-    const caddyfile = await Bun.file(
-      new URL("../../../infrastructure/caddy/Caddyfile", import.meta.url).pathname,
-    ).text();
+    const caddyfile = await ingress("infrastructure/caddy/Caddyfile");
     for (const probe of ["/health", "/ready", "/api/*"]) {
       expect(caddyfile).toContain(`handle ${probe} {`);
     }
     expect(caddyfile).toContain("reverse_proxy api:3001");
+  });
+
+  test("the ingress proxies the SPA to the web image instead of reading absent files", async () => {
+    const caddyfile = await ingress("infrastructure/caddy/Caddyfile");
+    expect(caddyfile).toContain("reverse_proxy web:80");
+    // The built assets live in the web image, so this container has no /srv/web to serve.
+    expect(caddyfile).not.toContain("root * /srv/web");
+
+    const webCaddyfile = await ingress("apps/web/Caddyfile");
+    expect(webCaddyfile).toContain("root * /srv/web");
+    expect(webCaddyfile).toContain("try_files {path} /index.html");
   });
 
   test("GET /ready reports per-dependency status without 500ing", async () => {
