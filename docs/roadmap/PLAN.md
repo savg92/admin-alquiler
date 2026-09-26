@@ -47,7 +47,7 @@ E2E gate is green.
 - [x] Request IDs (`X-Request-Id` generate/propagate across API → worker)
 - [x] Queue monitoring (depth, failures, dead-letter visibility)
 - [x] Automated encrypted backups
-- [ ] Restore drill in a test environment (record date + result)
+- [x] Restore drill in a test environment (record date + result)
 - [x] Secret management (env-validated, never logged, rotation documented)
 
 ### Engineering contracts [Stage A]

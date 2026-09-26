@@ -58,6 +58,15 @@ Use managed services only where their operational value exceeds the cost and loc
 - Structured logs.
 - Metrics.
 
+## Restore drill log
+
+Each drill restores an encrypted backup into an empty test database via
+`scripts/restore-drill.sh` (never production) and records date + result here.
+
+| Date (UTC) | Backup | Result |
+|---|---|---|
+| 2026-09-26 | `admin-alquiler-20260926T050627Z.sql.gz.enc` (ephemeral drill container, postgres:16) | OK — migrations 0001–0004 applied, 60 public tables restored, seeded `Organization(drill-co/COP)` round-tripped, smoke query green |
+
 ## Cloudflare
 
 Cloudflare can provide DNS, TLS/CDN and frontend hosting where appropriate.
