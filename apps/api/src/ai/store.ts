@@ -20,6 +20,8 @@ export interface ObservationRow {
   questionType: string;
   confidence: number;
   correct: boolean;
+  /** Mapped from `createdAt`; the §11 calibration gate measures its window from this. */
+  observedAt: Date;
 }
 
 export interface AuditInput {

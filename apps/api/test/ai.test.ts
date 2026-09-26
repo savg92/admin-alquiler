@@ -121,7 +121,14 @@ class FakeAiStore implements AiStore {
     confidence: number;
     correct: boolean;
   }): Promise<ObservationRow> {
-    const row: ObservationRow = { id: `obs-${this.observations.length + 1}`, ...data };
+    const row: ObservationRow = {
+      id: `obs-${this.observations.length + 1}`,
+      modelId: data.modelId,
+      questionType: data.questionType,
+      confidence: data.confidence,
+      correct: data.correct,
+      observedAt: new Date(),
+    };
     this.observations.push(row);
     return row;
   }

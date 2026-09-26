@@ -115,6 +115,7 @@ export class PrismaAiStore implements AiStore {
       questionType: created.questionType,
       confidence: created.confidence,
       correct: created.correct,
+      observedAt: created.createdAt,
     };
   }
 
@@ -137,6 +138,7 @@ export class PrismaAiStore implements AiStore {
       questionType: row.questionType,
       confidence: row.confidence,
       correct: row.correct,
+      observedAt: row.createdAt,
     }));
   }
 
