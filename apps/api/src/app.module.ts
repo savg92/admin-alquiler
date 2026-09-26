@@ -1,4 +1,5 @@
 import { type MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
+import { AiModule } from "./ai/ai.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
 import { CommunicationsModule } from "./communications/communications.module";
@@ -20,6 +21,7 @@ import { RateLimitMiddleware } from "./security/rate-limit.middleware";
 
 @Module({
   imports: [
+    AiModule,
     AuditModule,
     AuthModule,
     CommunicationsModule,

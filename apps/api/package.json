@@ -9,6 +9,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@admin-alquiler/ai": "workspace:*",
     "@admin-alquiler/auth": "workspace:*",
     "@admin-alquiler/config": "workspace:*",
     "@admin-alquiler/database": "workspace:*",

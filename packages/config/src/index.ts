@@ -1,5 +1,5 @@
-export type { ApiEnv, WebEnv, WorkerEnv } from "./env";
-export { validateEnv } from "./env";
+export type { AiConfig, ApiEnv, WebEnv, WorkerEnv } from "./env";
+export { readAiConfig, validateEnv } from "./env";
 
 export type ServiceName = "api" | "worker" | "web";
 

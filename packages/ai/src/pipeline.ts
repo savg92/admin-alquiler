@@ -112,3 +112,22 @@ export function fitTemperature(samples: CalibrationSample[]): number {
   }
   return best;
 }
+
+export type LifecycleStage =
+  "candidate" | "installed" | "evaluated" | "approved" | "active" | "deprecated";
+
+const LIFECYCLE_NEXT: Record<Exclude<LifecycleStage, "deprecated">, LifecycleStage> = {
+  candidate: "installed",
+  installed: "evaluated",
+  evaluated: "approved",
+  approved: "active",
+  active: "evaluated",
+};
+
+export function canTransitionLifecycle(from: string, to: string): boolean {
+  if (to === "deprecated") {
+    return from !== "deprecated";
+  }
+  const next = LIFECYCLE_NEXT[from as Exclude<LifecycleStage, "deprecated">];
+  return next === to;
+}

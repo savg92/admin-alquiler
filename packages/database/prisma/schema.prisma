@@ -805,6 +805,40 @@ model Handover {
   @@index([contractId])
 }
 
+model AIModel {
+  id           String   @id @default(cuid())
+  modelId      String   @unique
+  version      String
+  provider     String
+  runtime      String
+  quantization String?
+  capabilities String[]
+  contextSize  Int?
+  languages    String[]
+  privacyTier  String
+  hardware     Json?
+  status       String   @default("candidate")
+  score        Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
+  @@index([runtime])
+}
+
+model AIDecisionObservation {
+  id           String   @id @default(cuid())
+  orgId        String?
+  modelId      String
+  questionType String
+  confidence   Float
+  correct      Boolean
+  createdAt    DateTime @default(now())
+
+  @@index([modelId, questionType])
+  @@index([createdAt])
+}
+
 model Supplier {
   id       String  @id @default(cuid())
   orgId    String

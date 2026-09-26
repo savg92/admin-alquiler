@@ -20,6 +20,10 @@ const aiFlags = {
   AI_PROVIDER_API_KEY: z.string().optional(),
   AI_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   AI_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  AI_DECISION_PROVIDER: z.enum(["laya", "jev"]).default("laya"),
+  AI_DECISION_BASE_URL: z.string().default("http://localhost:8090"),
+  AI_DECISION_MODEL: z.string().default("laya"),
+  AI_DECISION_API_KEY: z.string().optional(),
 };
 
 const apiSchema = baseSchema.extend({
@@ -57,4 +61,54 @@ export function validateEnv(
     throw new Error(`Invalid environment for ${service}: ${details}`);
   }
   return parsed.data;
+}
+
+export interface AiConfig {
+  enabled: boolean;
+  webgpuEnabled: boolean;
+  localModels: string[];
+  localBaseUrl: string;
+  externalProvider: string;
+  providerBaseUrl: string;
+  providerApiKey: string | null;
+  timeoutMs: number;
+  maxRetries: number;
+  decisionProvider: "laya" | "jev";
+  decisionBaseUrl: string;
+  decisionModel: string;
+  decisionApiKey: string | null;
+}
+
+function parseBooleanFlag(value: string | undefined): boolean {
+  return value === "true";
+}
+
+function parseList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+export function readAiConfig(env: NodeJS.ProcessEnv = process.env): AiConfig {
+  const timeoutMs = Number(env.AI_TIMEOUT_MS ?? 15000);
+  const maxRetries = Number(env.AI_MAX_RETRIES ?? 2);
+  return {
+    enabled: parseBooleanFlag(env.AI_ENABLED),
+    webgpuEnabled: parseBooleanFlag(env.AI_WEBGPU_ENABLED),
+    localModels: parseList(env.AI_LOCAL_MODELS),
+    localBaseUrl: env.AI_LOCAL_BASE_URL ?? "http://localhost:8080",
+    externalProvider: (env.AI_EXTERNAL_PROVIDER ?? "").trim(),
+    providerBaseUrl: (env.AI_PROVIDER_BASE_URL ?? "").trim(),
+    providerApiKey: env.AI_PROVIDER_API_KEY ?? null,
+    timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : 15000,
+    maxRetries: Number.isInteger(maxRetries) && maxRetries >= 0 && maxRetries <= 5 ? maxRetries : 2,
+    decisionProvider: env.AI_DECISION_PROVIDER === "jev" ? "jev" : "laya",
+    decisionBaseUrl: env.AI_DECISION_BASE_URL ?? "http://localhost:8090",
+    decisionModel: env.AI_DECISION_MODEL ?? "laya",
+    decisionApiKey: env.AI_DECISION_API_KEY ?? null,
+  };
 }

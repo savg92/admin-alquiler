@@ -21,6 +21,8 @@ export const PERMISSION_KEYS = [
   "communication:write",
   "maintenance:read",
   "maintenance:write",
+  "ai:read",
+  "ai:write",
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
