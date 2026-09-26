@@ -10,8 +10,10 @@ import {
   buildAuditEvent,
   chargePaymentStatus,
   periodDueDate,
+  renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
+  validateRenewalTerms,
 } from "@admin-alquiler/domain";
 import { RENTAL_STORE } from "./tokens";
 import type { ChargeRow, CodeudorInput, ContractRow, RentalStore } from "./store";
@@ -283,5 +285,57 @@ export class RentalService {
     const days = Number.isInteger(withinDays) && withinDays > 0 ? Math.min(withinDays, 365) : 30;
     const before = new Date(Date.now() + days * 86_400_000);
     return this.store.expiringCodeudores(orgId, before);
+  }
+
+  async listExpiringContracts(orgId: string, withinDays = 90) {
+    const days = Number.isInteger(withinDays) && withinDays > 0 ? Math.min(withinDays, 365) : 90;
+    const before = new Date(Date.now() + days * 86_400_000);
+    const rows = await this.store.expiringContracts(orgId, before);
+    const now = Date.now();
+    return rows.map((row) => {
+      const daysRemaining = Math.ceil((row.endDate.getTime() - now) / 86_400_000);
+      return { ...row, daysRemaining, stage: renewalStage(daysRemaining) };
+    });
+  }
+
+  async renewContract(
+    orgId: string,
+    actorId: string,
+    contractId: string,
+    input: { newEndDate: string; rentAmount?: number },
+  ) {
+    const contract = await this.getContract(contractId, orgId);
+    if (contract.status === "TERMINATED") {
+      throw new BadRequestException("Terminated contracts cannot be renewed.");
+    }
+    const newEnd = parseDate(input.newEndDate, "newEndDate");
+    let rentAmountMinor: number | undefined;
+    if (input.rentAmount !== undefined) {
+      rentAmountMinor = toMinor(input.rentAmount);
+    }
+    try {
+      validateRenewalTerms({
+        currentEndDate: contract.endDate.toISOString(),
+        newEndDate: newEnd.toISOString(),
+        ...(rentAmountMinor === undefined ? {} : { rentAmountMinor }),
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid renewal.");
+    }
+    const updated = await this.store.renewContract(contractId, {
+      endDate: newEnd,
+      ...(rentAmountMinor === undefined ? {} : { rentAmountMinor }),
+    });
+    await this.store.writeAuditEvent(
+      buildAuditEvent({
+        orgId,
+        actorId,
+        action: "contract.renewed",
+        entityType: "Contract",
+        entityId: contractId,
+        metadata: { newEndDate: newEnd.toISOString().slice(0, 10) },
+      }),
+    );
+    return updated;
   }
 }

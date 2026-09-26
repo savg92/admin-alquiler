@@ -198,4 +198,38 @@ export class RentalController {
       Number.isInteger(withinDays) ? withinDays : 30,
     );
   }
+
+  @Get("contracts-expiring")
+  @RequirePermission("contract:read")
+  @ApiResponse({ status: 200, description: "Contracts expiring within N days (90/60/30 stages)." })
+  listExpiringContracts(@Req() req: ActorRequest) {
+    const raw = (req.query as Record<string, unknown> | undefined)?.["withinDays"];
+    const withinDays = typeof raw === "string" ? Number.parseInt(raw, 10) : 90;
+    return this.rental.listExpiringContracts(
+      orgIdOf(req),
+      Number.isInteger(withinDays) ? withinDays : 90,
+    );
+  }
+
+  @Post("contracts/:id/renew")
+  @RequirePermission("contract:write")
+  @ApiResponse({ status: 200, description: "Contract renewed with a later end date." })
+  renewContract(@Req() req: ActorRequest, @Param("id") id: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    const { newEndDate, rentAmount } = body as { newEndDate?: unknown; rentAmount?: unknown };
+    if (typeof newEndDate !== "string") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    if (rentAmount !== undefined && typeof rentAmount !== "number") {
+      throw new ForbiddenException("Invalid request.");
+    }
+    return this.rental.renewContract(
+      orgIdOf(req),
+      actorIdOf(req),
+      id,
+      typeof rentAmount === "number" ? { newEndDate, rentAmount } : { newEndDate },
+    );
+  }
 }

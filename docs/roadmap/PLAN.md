@@ -77,7 +77,7 @@ E2E gate is green.
 
 - [x] Contracts (documents, dates, terms, status, parties)
 - [x] Codeudores + linked rental policy (validity dates, policy-expiry reminders)
-- [ ] Contract expiry/renewal reminders (90/60/30 days) + renewal workflow
+- [x] Contract expiry/renewal reminders (90/60/30 days) + renewal workflow
 - [ ] Early termination (notice/effective dates, cause, country-pluggable indemnity as charge/credit)
 - [ ] Rent schedules + IPC increases (country-pluggable cap; CO DANE auto-fetch + manual correction)
 - [x] Recurring charge generation (monthly propose → preview/confirm; idempotent per contract+period)

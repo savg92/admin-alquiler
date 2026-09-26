@@ -261,6 +261,22 @@ class FakeRentalStore implements RentalStore {
       .map((row) => ({ ...row, contractNumber: "C-TEST" }));
   }
 
+  async expiringContracts() {
+    return [...this.contracts.values()];
+  }
+
+  async renewContract(id: string, data: { endDate: Date; rentAmountMinor?: number }) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.endDate = data.endDate;
+    if (data.rentAmountMinor !== undefined) {
+      found.rentAmountMinor = data.rentAmountMinor;
+    }
+    return found;
+  }
+
   async writeAuditEvent(event: { action: string }): Promise<void> {
     this.audits.push(event.action);
   }
@@ -500,5 +516,36 @@ describe("rental core", () => {
     });
     expect(expiries.status).toBe(200);
     expect(rentalStore.audits).toContain("codeudor.created");
+  });
+
+  test("expiring contracts list with 90/60/30 stages and renewal extends the term", async () => {
+    const contracts = (await (
+      await fetch(`${baseUrl}/api/v1/contracts`, { headers: headers() })
+    ).json()) as { id: string; endDate: string }[];
+    const contractId = contracts[0]?.id ?? "";
+    const expiring = await fetch(`${baseUrl}/api/v1/contracts-expiring?withinDays=365`, {
+      headers: headers(),
+    });
+    expect(expiring.status).toBe(200);
+    const rows = (await expiring.json()) as { id: string; stage: number }[];
+    expect(rows.map((row) => row.id)).toContain(contractId);
+    const badRenewal = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/renew`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ newEndDate: "2026-01-01" }),
+    });
+    expect(badRenewal.status).toBe(400);
+    const renewed = await fetch(`${baseUrl}/api/v1/contracts/${contractId}/renew`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ newEndDate: "2028-01-31", rentAmount: 1900000 }),
+    });
+    expect(renewed.status).toBe(201);
+    const detail = (await (
+      await fetch(`${baseUrl}/api/v1/contracts/${contractId}`, { headers: headers() })
+    ).json()) as { endDate: string; rentAmountMinor: number };
+    expect(detail.endDate.slice(0, 10)).toBe("2028-01-31");
+    expect(detail.rentAmountMinor).toBe(190000000);
+    expect(rentalStore.audits).toContain("contract.renewed");
   });
 });

@@ -325,6 +325,51 @@ export class PrismaRentalStore implements RentalStore {
     }));
   }
 
+  async expiringContracts(orgId: string, before: Date): Promise<ContractRow[]> {
+    const rows = await prisma.contract.findMany({
+      where: { orgId, status: "ACTIVE", endDate: { gte: new Date(), lte: before } },
+      orderBy: { endDate: "asc" },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      orgId: row.orgId,
+      propertyId: row.propertyId,
+      tenantId: row.tenantId,
+      number: row.number,
+      status: row.status,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      rentAmountMinor: toMinor(row.rentAmount),
+      currency: row.currency,
+    }));
+  }
+
+  async renewContract(
+    id: string,
+    data: { endDate: Date; rentAmountMinor?: number },
+  ): Promise<ContractRow> {
+    const updated = await prisma.contract.update({
+      where: { id },
+      data: {
+        endDate: data.endDate,
+        ...(data.rentAmountMinor === undefined ? {} : { rentAmount: data.rentAmountMinor / 100 }),
+        status: "ACTIVE",
+      },
+    });
+    return {
+      id: updated.id,
+      orgId: updated.orgId,
+      propertyId: updated.propertyId,
+      tenantId: updated.tenantId,
+      number: updated.number,
+      status: updated.status,
+      startDate: updated.startDate,
+      endDate: updated.endDate,
+      rentAmountMinor: toMinor(updated.rentAmount),
+      currency: updated.currency,
+    };
+  }
+
   async writeAuditEvent(event: AuditInput): Promise<void> {
     await prisma.auditEvent.create({
       data: {

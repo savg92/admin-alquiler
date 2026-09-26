@@ -129,3 +129,43 @@ export function expiringPolicies(
     })
     .sort((a, b) => Date.parse(a.validUntil as string) - Date.parse(b.validUntil as string));
 }
+
+export type RenewalStage = 90 | 60 | 30 | 0;
+
+export function renewalStage(daysRemaining: number): RenewalStage {
+  if (daysRemaining <= 30) {
+    return 30;
+  }
+  if (daysRemaining <= 60) {
+    return 60;
+  }
+  if (daysRemaining <= 90) {
+    return 90;
+  }
+  return 0;
+}
+
+export interface RenewalTermsInput {
+  currentEndDate: string;
+  newEndDate: string;
+  rentAmountMinor?: number;
+}
+
+export function validateRenewalTerms(input: RenewalTermsInput): void {
+  const current = Date.parse(input.currentEndDate);
+  const next = Date.parse(input.newEndDate);
+  if (Number.isNaN(current)) {
+    throw new Error('Invalid date "currentEndDate".');
+  }
+  if (Number.isNaN(next)) {
+    throw new Error('Invalid date "newEndDate".');
+  }
+  if (next <= current) {
+    throw new Error("Renewal newEndDate must be after the current endDate.");
+  }
+  if (input.rentAmountMinor !== undefined) {
+    if (!Number.isInteger(input.rentAmountMinor) || input.rentAmountMinor <= 0) {
+      throw new Error("rentAmountMinor must be a positive integer of minor units.");
+    }
+  }
+}

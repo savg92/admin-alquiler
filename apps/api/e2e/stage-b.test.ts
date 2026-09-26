@@ -607,6 +607,22 @@ class FakeWorld implements AuthStore, PropertiesStore, RentalStore {
       .map((row) => ({ ...row, contractNumber: "C-E2E" }));
   }
 
+  async expiringContracts(orgId: string) {
+    return [...this.contracts.values()].filter((contract) => contract.orgId === orgId);
+  }
+
+  async renewContract(id: string, data: { endDate: Date; rentAmountMinor?: number }) {
+    const found = this.contracts.get(id);
+    if (!found) {
+      throw new Error("Contract not found.");
+    }
+    found.endDate = data.endDate;
+    if (data.rentAmountMinor !== undefined) {
+      found.rentAmountMinor = data.rentAmountMinor;
+    }
+    return found;
+  }
+
   async paymentsTotalMinor(propertyId: string, from: Date, to: Date): Promise<number> {
     let total = 0;
     for (const payment of this.payments.values()) {

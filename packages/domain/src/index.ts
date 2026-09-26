@@ -24,8 +24,10 @@ export {
   expiringPolicies,
   periodDueDate,
   periodKey,
+  renewalStage,
   validateCodeudorTerms,
   validateContractTerms,
+  validateRenewalTerms,
 } from "./rental";
 export type {
   AllocationResult,
@@ -35,6 +37,8 @@ export type {
   ContractTermsInput,
   PaymentAllocation,
   PolicyExpiry,
+  RenewalStage,
+  RenewalTermsInput,
 } from "./rental";
 export {
   ATTACHMENT_KINDS,

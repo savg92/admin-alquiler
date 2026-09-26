@@ -118,5 +118,10 @@ export interface RentalStore {
     orgId: string,
     before: Date,
   ): Promise<(CodeudorRow & { contractNumber: string })[]>;
+  expiringContracts(orgId: string, before: Date): Promise<ContractRow[]>;
+  renewContract(
+    id: string,
+    data: { endDate: Date; rentAmountMinor?: number },
+  ): Promise<ContractRow>;
   writeAuditEvent(event: AuditInput): Promise<void>;
 }
