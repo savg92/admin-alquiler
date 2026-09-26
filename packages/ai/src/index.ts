@@ -1,6 +1,20 @@
 export { allowedRuntimes, minimizeFields, privacyLevelFor, redactPersonal } from "./privacy";
 export type { PrivacyLevel } from "./privacy";
 export {
+  AI_FORBIDDEN_ACTIONS,
+  assertResultUsable,
+  isForbiddenAiAction,
+  requiresHumanConfirmation,
+  SAFETY_STAGES,
+  UnconfirmedAiResultError,
+} from "./safety";
+export type {
+  ConfirmationDecision,
+  ConfirmationInput,
+  PipelineOutcome,
+  SafetyStage,
+} from "./safety";
+export {
   applyDecisionThreshold,
   calibrateConfidence,
   canTransitionLifecycle,
