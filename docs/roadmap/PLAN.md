@@ -140,9 +140,9 @@ E2E gate is green.
 ### WS-11 — Security [Stage D, hardening pass over all]
 
 - [x] Rate limiting + secure headers + CSRF/XSS/SSRF protections
-- [ ] Upload validation (size, MIME, safe names, private storage, authz before download)
-- [ ] Tenant isolation verified (tests, not UI hiding)
-- [ ] Security test suite (authz, isolation, uploads, auth abuse)
+- [x] Upload validation (size, MIME, safe names, private storage, authz before download)
+- [x] Tenant isolation verified (tests, not UI hiding)
+- [x] Security test suite (authz, isolation, uploads, auth abuse)
 
 ### WS-13 — Testing [continuous; gates each stage]
 
