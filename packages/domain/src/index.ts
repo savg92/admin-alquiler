@@ -112,6 +112,15 @@ export {
   validateTemplateName,
 } from "./documents";
 export type { DocumentStatus } from "./documents";
+export { computeQuorum, evaluateApprovalRule, evaluateDecision } from "./governance";
+export type {
+  ApprovalRuleMode,
+  AssemblyMajority,
+  AttendanceEntry,
+  DecisionOutcome,
+  QuorumResult,
+  VoteTally,
+} from "./governance";
 export {
   canTransitionCase,
   canTransitionMaintenance,

@@ -124,7 +124,7 @@ E2E gate is green.
 
 ### WS-9 — Governance [Stage D]
 
-- [ ] Acts/minutes + decisions + voting (ownership-share weighted)
+- [x] Acts/minutes + decisions + voting (ownership-share weighted)
 - [ ] PH assembly acts (attendance, quorum computation, proxies; 50%+1 ordinary, 70% qualified)
 - [ ] Approval rules + owner authorization (configurable: one/quorum/percentage/all)
 - [ ] PH cuotas linked to charges (property-flag gated)
